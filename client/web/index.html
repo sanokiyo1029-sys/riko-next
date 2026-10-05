@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Riko Next</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='40' fill='none' stroke='%23FF86B0' stroke-width='12'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+      "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.5.5/lib/three-vrm.module.js"
+    }
+  }
+  </script>
+</head>
+<body data-state="offline" data-speaker="none">
+  <div class="app">
+    <header class="topbar">
+      <div class="identity">
+        <h1 id="charName">Riko</h1>
+        <label class="preset">
+          <span class="sr-only">Personality</span>
+          <select id="presetSelect" aria-label="Personality"></select>
+        </label>
+      </div>
+      <div class="conn" id="conn" role="status"><span class="dot" aria-hidden="true"></span><span id="connText">Connecting</span></div>
+      <button id="settingsBtn" class="icon-btn" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7Zm8.6-2.6.1-.9-.1-.9 2-1.6-2-3.4-2.4 1a7.8 7.8 0 0 0-1.6-.9L16.2 2h-4l-.4 2.6c-.6.2-1.1.5-1.6.9l-2.4-1-2 3.4 2 1.6-.1.9.1.9-2 1.6 2 3.4 2.4-1c.5.4 1 .7 1.6.9l.4 2.6h4l.4-2.6c.6-.2 1.1-.5 1.6-.9l2.4 1 2-3.4-2-1.6Z" transform="translate(-2 1)"/></svg>
+      </button>
+    </header>
+
+    <main class="stage" id="stage">
+      <div class="halo" id="halo" aria-hidden="true"></div>
+      <div class="avatar" id="avatar" aria-hidden="true"></div>
+      <p class="emotion" id="emotion" aria-live="polite">calm</p>
+      <p class="subtitle" id="subtitle" aria-live="polite"></p>
+
+      <div class="start" id="startGate">
+        <button id="startBtn" class="start-btn">Start talking</button>
+        <p>Riko listens through your microphone. Headphones work best.</p>
+      </div>
+
+      <div class="controls" id="controls" hidden>
+        <button id="micBtn" class="ctl" aria-pressed="true" title="Microphone (M)">Mic on</button>
+        <button id="talkBtn" class="talk" title="Hold Space">Hold to talk</button>
+        <button id="muteBtn" class="ctl" aria-pressed="false" title="Riko's voice">Voice on</button>
+      </div>
+      <p class="hint" id="hint"></p>
+    </main>
+
+    <aside class="side">
+      <div class="tabs" role="tablist">
+        <button role="tab" id="tabLog" aria-selected="true" aria-controls="logPanel">Conversation</button>
+        <button role="tab" id="tabMem" aria-selected="false" aria-controls="memPanel">Memory <span id="memCount" class="count"></span></button>
+      </div>
+      <section id="logPanel" class="log" role="tabpanel" aria-labelledby="tabLog" aria-live="polite"></section>
+      <section id="memPanel" class="mem" role="tabpanel" aria-labelledby="tabMem" hidden>
+        <p class="mem-intro">What Riko remembers about you. Facts last for months, events fade over weeks, goals expire in days.</p>
+        <ul id="memList"></ul>
+      </section>
+      <form id="textForm" class="composer" autocomplete="off">
+        <label class="sr-only" for="textInput">Message</label>
+        <input id="textInput" maxlength="2000" placeholder="Type a message">
+        <button type="submit">Send</button>
+      </form>
+    </aside>
+  </div>
+
+  <dialog id="settings" aria-labelledby="settingsTitle">
+    <form method="dialog" class="settings">
+      <h2 id="settingsTitle">Settings</h2>
+      <fieldset>
+        <legend>How you talk</legend>
+        <label><input type="radio" name="inputMode" value="auto"> Just talk (voice detection)</label>
+        <label><input type="radio" name="inputMode" value="ptt"> Push to talk</label>
+      </fieldset>
+      <label>Character <select id="characterSelect"></select></label>
+      <label>Model <select id="modelSelect"></select></label>
+      <label>Voice <select id="voiceSelect"></select></label>
+      <label class="file">Avatar model (.vrm)
+        <input type="file" id="vrmFile" accept=".vrm">
+      </label>
+      <p class="small" id="engineInfo"></p>
+      <p class="small" id="latencyInfo"></p>
+      <div class="dialog-actions"><button value="close">Done</button></div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

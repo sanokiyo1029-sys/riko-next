@@ -1,0 +1,9 @@
+# Convenience mirror of pyproject.toml. Preferred: pip install -e ".[all,dev]"
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+httpx>=0.27
+PyYAML>=6.0
+numpy>=1.24
+faster-whisper>=1.1
+sounddevice>=0.4.6

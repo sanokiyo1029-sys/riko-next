@@ -1,0 +1,92 @@
+# Riko Next configuration. Copy to config.yaml (start scripts do this for you).
+# Paths are relative to this file. Secrets go in .env, referenced by *_env names.
+# ${VAR} and ${VAR:-default} are expanded from the environment.
+
+llm:
+  # ollama | lmstudio | openai | openrouter | groq | openai_compatible
+  provider: ollama
+  model: llama3.1:8b            # any model you have pulled: `ollama pull llama3.1:8b`
+  # base_url: http://127.0.0.1:11434   # defaults per provider (LM Studio: http://127.0.0.1:1234/v1)
+  # api_key_env: OPENAI_API_KEY        # defaults per provider
+  temperature: 0.85
+  max_tokens: 400
+  ollama_keep_alive: 30m        # keep the model in VRAM between turns (no cold starts)
+
+asr:
+  provider: faster_whisper      # faster_whisper | groq | openai_compatible
+  model: base.en                # tiny.en/base.en (fast, CPU ok) ... small/medium/large-v3/distil-large-v3 (GPU)
+  device: auto                  # auto | cpu | cuda  (auto falls back to CPU if CUDA libs are missing)
+  compute_type: auto            # auto = float16 on GPU, int8 on CPU
+  language: en                  # null = auto-detect (slower)
+  beam_size: 1                  # 1 = lowest latency
+
+audio:
+  input_mode: auto              # auto (voice detection) | ptt (push-to-talk)
+  vad:
+    engine: silero              # silero (bundled with faster-whisper) | energy
+    threshold: 0.5
+    min_speech_ms: 200
+    silence_ms: 650             # how long you pause before Riko answers
+    preroll_ms: 300
+  barge_in:
+    enabled: true               # talk over Riko to interrupt her
+    min_speech_ms: 350          # speech needed to count as an interruption
+    duck_volume: 0.25           # her volume while deciding whether you interrupted
+
+tts:
+  provider: gpt_sovits          # gpt_sovits | openai_compatible | browser | none
+  voice: riko
+  voices:
+    riko:
+      ref_audio: characters/voices/riko_sample.wav   # 3-10 s clip, from the original Project Riko
+      prompt_text: This is a sample voice for you to just get started with because it sounds kind of cute but just make sure this doesn't have long silences.
+      prompt_lang: en
+      voice_id: af_heart        # used only by openai_compatible TTS (e.g. Kokoro-FastAPI)
+      emotions:                 # optional per-emotion reference clips / speed
+        excited: { speed_factor: 1.1 }
+        sad: { speed_factor: 0.92 }
+        # happy: { ref_audio: characters/voices/riko_happy.wav, prompt_text: "exact words in that clip" }
+  gpt_sovits:
+    base_url: http://127.0.0.1:9880
+    text_lang: en
+    streaming_mode: 2           # 0 off, 1 best quality, 2 balanced, 3 fastest
+  openai_compatible:
+    base_url: http://127.0.0.1:8880/v1   # Kokoro-FastAPI default; or https://api.openai.com/v1
+    # api_key_env: OPENAI_API_KEY
+    model: kokoro
+    sample_rate: 24000
+
+memory:
+  enabled: true
+  db_path: data/riko.db
+  embeddings:
+    provider: hash              # hash (offline, keyword-level) | ollama | openai_compatible
+    # provider: ollama          # recommended for real semantic recall:
+    # model: nomic-embed-text   #   ollama pull nomic-embed-text
+  top_k: 6
+  extraction: llm               # llm | heuristic | off
+  short_term_messages: 16
+  half_life_days: { episodic: 21, semantic: 180, working: 2 }
+
+personality:
+  character: riko               # file in characters/
+  preset: default               # default | friendly | sarcastic | professional
+
+emotion:
+  enabled: true
+  mode: tags                    # tags (zero-latency, from the LLM) | lexicon
+
+server:
+  host: 127.0.0.1               # keep local unless you set RIKO_AUTH_TOKEN
+  port: 8765
+
+frontend:
+  show_token_stream: true
+  avatar:
+    enabled: true
+    vrm_url: ""                 # e.g. avatars/riko.vrm (put the file in client/web/avatars/)
+
+logging:
+  level: INFO
+  format: pretty                # pretty | json
+  # file: data/riko.log

@@ -1,0 +1,9 @@
+.env
+config.yaml
+data/
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+client/web/avatars/*.vrm
