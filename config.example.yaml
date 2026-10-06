@@ -1,16 +1,54 @@
 # Riko Next configuration. Copy to config.yaml (start scripts do this for you).
 # Paths are relative to this file. Secrets go in .env, referenced by *_env names.
 # ${VAR} and ${VAR:-default} are expanded from the environment.
+# Unknown keys are errors, so typos fail at startup instead of silently doing nothing.
 
 llm:
   # ollama | lmstudio | openai | openrouter | groq | openai_compatible
-  provider: ollama
-  model: llama3.1:8b            # any model you have pulled: `ollama pull llama3.1:8b`
+  provider: ${LLM_PROVIDER:-ollama}
+  model: ${LLM_MODEL:-gpt-oss:20b}   # `ollama pull gpt-oss:20b` (~13 GB). Any chat model works.
   # base_url: http://127.0.0.1:11434   # defaults per provider (LM Studio: http://127.0.0.1:1234/v1)
-  # api_key_env: OPENAI_API_KEY        # defaults per provider
-  temperature: 0.85
-  max_tokens: 400
-  ollama_keep_alive: 30m        # keep the model in VRAM between turns (no cold starts)
+  # api_key_env: OPENAI_API_KEY        # defaults per provider; the key itself lives in .env
+  reasoning_effort: low         # low | medium | high (gpt-oss), off (qwen3-style), null (don't send)
+  temperature: 1.0              # gpt-oss recommended sampling
+  max_tokens: 2048              # reasoning + answer budget; small caps starve reasoning models
+  num_ctx: 8192                 # keep constant: changing it reloads the model
+  safety_margin_tokens: 512
+  first_content_timeout_s: 15   # no answer text by then -> short labelled fallback
+  overall_timeout_s: 45
+  ollama_keep_alive: 30m        # keep the model in VRAM between turns
+
+# Optional model routing. Each role inherits everything from `llm` and overrides what you list.
+# Roles with identical settings share one client (and one loaded model).
+#   fast   = normal replies           smart  = follow-ups after tool calls
+#   vision = describes images for the main model (unset = images are not understood)
+models: {}
+#  vision:
+#    model: qwen3.6:latest         # any Ollama model with the "vision" capability (llava, gemma3, qwen2.5vl...)
+#    reasoning_effort: off
+#  smart:
+#    provider: openai              # e.g. a cloud model for the harder follow-up steps
+#    model: gpt-4.1-mini
+
+tools:
+  enabled: true
+  max_steps: 4                  # tool rounds per reply
+  # safe = time/calculator/image questions, memory = Riko's own database (memories, notes, tasks).
+  # Add "network" for weather + web search and "files" for read-only access to file_roots.
+  permissions: [safe, memory]
+  disabled: []                  # e.g. [add_note]
+  # web_search_url: http://127.0.0.1:8888   # your SearxNG instance (JSON output enabled)
+  file_roots: []                # e.g. [~/Documents/notes]  (secrets like .env/*.pem are always refused)
+
+proactive:
+  enabled: true
+  notification_level: normal    # off | minimal (greeting + your reminders) | normal (+ rare idle nudges)
+  greeting: true
+  idle_nudge_s: 90              # 0 disables nudges
+  nudge_cooldown_s: 600
+  max_nudges_per_session: 2
+  # quiet_hours: "22:30-07:30"  # no greetings/nudges then (reminders you set still fire)
+  # timezone: Asia/Kolkata      # default: this computer's local time
 
 asr:
   provider: faster_whisper      # faster_whisper | groq | openai_compatible
@@ -36,6 +74,8 @@ audio:
 tts:
   provider: gpt_sovits          # gpt_sovits | openai_compatible | browser | none
   voice: riko
+  max_spoken_sentences: 3       # for replies to voice; the rest is shown on screen (0 = unlimited)
+  max_spoken_words: 90
   voices:
     riko:
       ref_audio: characters/voices/riko_sample.wav   # 3-10 s clip, from the original Project Riko
@@ -47,7 +87,7 @@ tts:
         sad: { speed_factor: 0.92 }
         # happy: { ref_audio: characters/voices/riko_happy.wav, prompt_text: "exact words in that clip" }
   gpt_sovits:
-    base_url: http://127.0.0.1:9880
+    base_url: ${TTS_URL:-http://127.0.0.1:9880}
     text_lang: en
     streaming_mode: 2           # 0 off, 1 best quality, 2 balanced, 3 fastest
   openai_compatible:
@@ -58,23 +98,26 @@ tts:
 
 memory:
   enabled: true
-  db_path: data/riko.db
+  db_path: ${DATABASE_PATH:-data/riko.db}
   embeddings:
     provider: hash              # hash (offline, keyword-level) | ollama | openai_compatible
     # provider: ollama          # recommended for real semantic recall:
-    # model: nomic-embed-text   #   ollama pull nomic-embed-text
+    # model: nomic-embed-text   #   ollama pull nomic-embed-text, then: riko memory reindex
   top_k: 6
   extraction: llm               # llm | heuristic | off
   short_term_messages: 16
-  half_life_days: { episodic: 21, semantic: 180, working: 2 }
+  half_life_days: { episodic: 21, semantic: 180, relationship: 365, task: 30, working: 2 }
+  familiarity: { stage1_after_sessions: 1, stage2_min_days: 7, stage2_min_sessions: 6, session_gap_minutes: 30 }
 
 personality:
   character: riko               # file in characters/
-  preset: default               # default | friendly | sarcastic | professional
+  preset: default               # default | classic (original Project Riko prompt) | friendly | sarcastic | professional
 
 emotion:
   enabled: true
   mode: tags                    # tags (zero-latency, from the LLM) | lexicon
+  mood_enabled: true            # slow-moving mood that decays back to the character's baseline
+  mood_half_life_minutes: 20
 
 server:
   host: 127.0.0.1               # keep local unless you set RIKO_AUTH_TOKEN

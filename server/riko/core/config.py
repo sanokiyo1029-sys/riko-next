@@ -74,12 +74,16 @@ class LLMConfig(_Strict):
     @model_validator(mode="before")
     @classmethod
     def _migrate(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
         # 0.1 configs used ollama_num_ctx; it maps onto num_ctx.
-        if isinstance(data, dict) and "ollama_num_ctx" in data:
-            data = dict(data)
+        if "ollama_num_ctx" in data:
             legacy = data.pop("ollama_num_ctx")
             if legacy and "num_ctx" not in data:
                 data["num_ctx"] = legacy
+        if data.get("reasoning_effort") is False:  # YAML 1.1 reads a bare `off` as false
+            data["reasoning_effort"] = "off"
         return data
 
     @model_validator(mode="after")

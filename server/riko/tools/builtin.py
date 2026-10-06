@@ -72,6 +72,8 @@ _CONST = {"pi": math.pi, "e": math.e, "tau": math.tau}
 
 def safe_eval(expr: str) -> float:
     expr = expr.replace("^", "**").replace("×", "*").replace("÷", "/").replace(",", "")
+    expr = re.sub(r"(\d+(?:\.\d+)?)\s*%\s*of\s*", r"(\1/100)*", expr, flags=re.I)  # "17% of 2450"
+    expr = re.sub(r"(\d+(?:\.\d+)?)\s*%(?!\s*[\d(])", r"(\1/100)", expr)            # "15%" (not modulo)
     if len(expr) > 200:
         raise ToolError("expression too long")
     try:

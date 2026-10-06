@@ -802,7 +802,8 @@ class ConversationSession:
 
     async def _tts_worker(self, st: _TurnState, queue: "asyncio.Queue[Optional[_Sentence]]") -> None:
         tts = self.s.tts
-        tts_down = False
+        # A dead TTS server is skipped for 30 s across turns (reported once), then retried.
+        tts_down = self.s.status.get("tts_down_until", 0.0) > time.monotonic()
         mood = self._mood()
         mood_speed = MoodModel.speed_factor(mood) if mood else 1.0
         while True:
@@ -835,6 +836,8 @@ class ConversationSession:
                 log.error("TTS failed", extra={"error": str(e), "sentence": job.index})
                 await self._emit(Ev.ERROR, component="tts", message=str(e), recoverable=True, turn_id=st.turn_id)
                 tts_down = e.unavailable  # don't hammer a dead server for every sentence
+                if e.unavailable:
+                    self.s.status["tts_down_until"] = time.monotonic() + 30.0
                 if first:
                     st.spoken.append(job.raw)  # the text was still shown to the user
             await self._emit(Ev.TTS_FINISHED, turn_id=st.turn_id, index=job.index)

@@ -3,6 +3,8 @@
 //    blinking, lip sync from audio level, emotion expressions, talking head motion.
 //  - Fallback: an original 2D face drawn in SVG with the same controller API.
 const lerp = (a, b, t) => a + (b - a) * t;
+// Respect the OS "reduce motion" setting: no idle sway or head motion, blinking and lip sync only.
+const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
 export async function createAvatar(container, { vrmUrl = '', enabled = true } = {}) {
   if (!enabled) return nullAvatar();
@@ -13,7 +15,7 @@ export async function createAvatar(container, { vrmUrl = '', enabled = true } = 
   return createFaceAvatar(container);
 }
 
-function nullAvatar() { return { setEmotion() {}, update() {}, dispose() {}, kind: 'none' }; }
+function nullAvatar() { return { setEmotion() {}, setMood() {}, update() {}, dispose() {}, kind: 'none' }; }
 
 // ------------------------------------------------------------------ 2D fallback face
 function createFaceAvatar(container) {
@@ -39,7 +41,7 @@ function createFaceAvatar(container) {
   const browL = $('browL'), browR = $('browR'), cheeks = $('cheeks');
   let t = 0, nextBlink = 2 + Math.random() * 3, blink = 0, open = 0;
   let emo = { expression: 'neutral', intensity: 0.3, emotion: 'neutral' };
-  let browTarget = 0, browCur = 0;
+  let browTarget = 0, browCur = 0, lookY = 0;
 
   return {
     kind: '2d',
@@ -48,18 +50,22 @@ function createFaceAvatar(container) {
       browTarget = { angry: -10, sad: 8, surprised: -6, relaxed: 3 }[e.expression] ?? 0;
       cheeks.setAttribute('opacity', e.emotion === 'embarrassed' ? '1' : e.expression === 'happy' ? '.6' : '.35');
     },
-    update(dt, { mouth: level = 0, speaking = false }) {
+    setMood() {},
+    update(dt, { mouth: level = 0, speaking = false, thinking = false, arousal = 0.45 }) {
       t += dt;
       nextBlink -= dt;
-      if (nextBlink <= 0) { blink = 0.14; nextBlink = 2 + Math.random() * 4; }
+      if (nextBlink <= 0) { blink = 0.14; nextBlink = (2 + Math.random() * 4) * (1.3 - arousal * 0.6); }
       blink = Math.max(0, blink - dt);
+      const still = reducedMotion();
+      lookY = lerp(lookY, thinking ? -4 : 0, Math.min(1, dt * 6));   // glance up while thinking
       const closed = blink > 0 ? 0.1 : 1;
       const useHappy = emo.expression === 'happy' && emo.intensity > 0.45 && !speaking;
       happy.setAttribute('opacity', useHappy ? '1' : '0');
       const sy = (emo.expression === 'surprised' ? 1.15 : 1) * closed;
       eyes.forEach((g, i) => {
         g.setAttribute('opacity', useHappy ? '0' : '1');
-        g.setAttribute('transform', `translate(${i ? 134 : 66} ${106 + Math.sin(t * 1.3) * 0.8}) scale(1 ${sy})`);
+        const sway = still ? 0 : Math.sin(t * (1 + arousal)) * (0.5 + arousal);
+        g.setAttribute('transform', `translate(${(i ? 134 : 66) + lookY * 0.4} ${106 + sway + lookY}) scale(1 ${sy})`);
       });
       browCur = lerp(browCur, browTarget, Math.min(1, dt * 8));
       browL.setAttribute('transform', `rotate(${browCur} 66 80)`);
@@ -130,8 +136,10 @@ async function createVRMAvatar(container, url) {
         target[e.expression] = Math.min(1, 0.35 + e.intensity * 0.6);
       }
     },
-    update(dt, { mouth = 0, speaking = false, listening = false }) {
+    setMood() {},
+    update(dt, { mouth = 0, speaking = false, listening = false, thinking = false, arousal = 0.45 }) {
       t += dt;
+      const amp = reducedMotion() ? 0 : 0.6 + arousal;
       // arms down from T-pose, gentle breathing and sway
       if (lUpper) lUpper.rotation.z = -1.15 + Math.sin(t * 1.1) * 0.015;
       if (rUpper) rUpper.rotation.z = 1.15 - Math.sin(t * 1.1) * 0.015;
@@ -139,14 +147,15 @@ async function createVRMAvatar(container, url) {
       if (rLower) rLower.rotation.z = 0.12;
       if (spine) spine.rotation.x = Math.sin(t * 1.2) * 0.015;
       if (chest) chest.rotation.x = Math.sin(t * 1.2 + 0.6) * 0.012;
-      if (neck) {
+      if (neck && amp === 0) { neck.rotation.set(0, 0, 0); } else if (neck) {
         neck.rotation.y = Math.sin(t * 0.45) * 0.06;
-        neck.rotation.z = listening ? 0.06 : Math.sin(t * 0.33) * 0.02;   // curious head tilt while listening
+        neck.rotation.z = listening ? 0.06 : thinking ? -0.05 : Math.sin(t * 0.33) * 0.02 * amp;  // tilt: listening/thinking
+        neck.rotation.x = thinking ? -0.08 : 0;   // glance up while thinking
       }
       if (head) head.rotation.x = speaking ? Math.sin(t * 7) * mouth * 0.05 : 0;
       // blinking
       nextBlink -= dt;
-      if (nextBlink <= 0) { blinkT = 0.15; nextBlink = 2 + Math.random() * 4; }
+      if (nextBlink <= 0) { blinkT = 0.15; nextBlink = (2 + Math.random() * 4) * (1.3 - arousal * 0.6); }
       blinkT = Math.max(0, blinkT - dt);
       const blink = blinkT > 0 ? Math.sin((blinkT / 0.15) * Math.PI) : 0;
       // expressions, eased

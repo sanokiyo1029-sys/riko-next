@@ -28,6 +28,7 @@
           <span class="sr-only">Personality</span>
           <select id="presetSelect" aria-label="Personality"></select>
         </label>
+        <span class="familiar" id="familiar" title="Familiarity grows only with time and finished conversations"></span>
       </div>
       <div class="conn" id="conn" role="status"><span class="dot" aria-hidden="true"></span><span id="connText">Connecting</span></div>
       <button id="settingsBtn" class="icon-btn" aria-label="Settings" title="Settings">
@@ -38,12 +39,13 @@
     <main class="stage" id="stage">
       <div class="halo" id="halo" aria-hidden="true"></div>
       <div class="avatar" id="avatar" aria-hidden="true"></div>
-      <p class="emotion" id="emotion" aria-live="polite">calm</p>
+      <p class="emotion" id="emotion" aria-live="polite" title="">calm</p>
+      <p class="activity" id="activity" aria-live="polite"></p>
       <p class="subtitle" id="subtitle" aria-live="polite"></p>
 
       <div class="start" id="startGate">
         <button id="startBtn" class="start-btn">Start talking</button>
-        <p>Riko listens through your microphone. Headphones work best.</p>
+        <p>Riko listens through your microphone. Headphones work best. You can also just type.</p>
       </div>
 
       <div class="controls" id="controls" hidden>
@@ -58,19 +60,66 @@
       <div class="tabs" role="tablist">
         <button role="tab" id="tabLog" aria-selected="true" aria-controls="logPanel">Conversation</button>
         <button role="tab" id="tabMem" aria-selected="false" aria-controls="memPanel">Memory <span id="memCount" class="count"></span></button>
+        <button role="tab" id="tabTasks" aria-selected="false" aria-controls="taskPanel">Tasks <span id="taskCount" class="count"></span></button>
       </div>
       <section id="logPanel" class="log" role="tabpanel" aria-labelledby="tabLog" aria-live="polite"></section>
       <section id="memPanel" class="mem" role="tabpanel" aria-labelledby="tabMem" hidden>
-        <p class="mem-intro">What Riko remembers about you. Facts last for months, events fade over weeks, goals expire in days.</p>
+        <div class="mem-head">
+          <label class="switch"><input type="checkbox" id="memEnabled" checked> Remember things</label>
+          <select id="memLayer" aria-label="Filter memories">
+            <option value="">Everything</option>
+            <option value="semantic">Facts &amp; preferences</option>
+            <option value="relationship">How you like to be treated</option>
+            <option value="episodic">Things that happened</option>
+            <option value="task">Goals</option>
+            <option value="working">Right now</option>
+          </select>
+        </div>
+        <p class="mem-intro">What Riko remembers about you. Click a memory to correct it. Nothing here is shared anywhere; it lives in one file on this computer.</p>
         <ul id="memList"></ul>
+        <form id="memAdd" class="mem-add" autocomplete="off">
+          <label class="sr-only" for="memAddInput">Add a memory</label>
+          <input id="memAddInput" maxlength="500" placeholder="Add something Riko should know">
+          <button type="submit">Add</button>
+        </form>
+        <div class="mem-actions">
+          <a id="memExport" href="#" download="riko-memory-export.json">Export</a>
+          <button id="memClear" class="danger" type="button">Forget everything</button>
+        </div>
       </section>
+      <section id="taskPanel" class="mem" role="tabpanel" aria-labelledby="tabTasks" hidden>
+        <p class="mem-intro">Tasks and reminders you asked Riko to keep. Reminders are spoken only while this page is open.</p>
+        <ul id="taskList"></ul>
+      </section>
+      <div id="attachPreview" class="attach-preview" hidden>
+        <img id="attachImg" alt="Image to send">
+        <span id="attachText">Image attached</span>
+        <button id="attachClear" type="button" aria-label="Remove image">&times;</button>
+      </div>
       <form id="textForm" class="composer" autocomplete="off">
+        <button id="attachBtn" type="button" class="icon-btn" aria-label="Attach an image" title="Attach an image (or paste one)">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M16.5 6v11.5a4 4 0 0 1-8 0V5a2.5 2.5 0 0 1 5 0v10.5a1 1 0 0 1-2 0V6H10v9.5a2.5 2.5 0 0 0 5 0V5a4 4 0 0 0-8 0v12.5a5.5 5.5 0 0 0 11 0V6h-1.5Z"/></svg>
+        </button>
+        <button id="cameraBtn" type="button" class="icon-btn" aria-label="Take a photo with the camera" title="Camera snapshot">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M9 3 7.2 5H4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3.2L15 3H9Zm3 5a5 5 0 1 1 0 10 5 5 0 0 1 0-10Zm0 2a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/></svg>
+        </button>
+        <input type="file" id="attachFile" accept="image/png,image/jpeg,image/gif,image/webp" hidden>
         <label class="sr-only" for="textInput">Message</label>
         <input id="textInput" maxlength="2000" placeholder="Type a message">
         <button type="submit">Send</button>
       </form>
     </aside>
   </div>
+
+  <dialog id="camera" aria-label="Camera">
+    <div class="camera">
+      <video id="cameraVideo" autoplay playsinline muted></video>
+      <div class="dialog-actions">
+        <button id="cameraCancel" type="button" class="secondary">Cancel</button>
+        <button id="cameraSnap" type="button">Use this photo</button>
+      </div>
+    </div>
+  </dialog>
 
   <dialog id="settings" aria-labelledby="settingsTitle">
     <form method="dialog" class="settings">
@@ -80,6 +129,13 @@
         <label><input type="radio" name="inputMode" value="auto"> Just talk (voice detection)</label>
         <label><input type="radio" name="inputMode" value="ptt"> Push to talk</label>
       </fieldset>
+      <label>Speaking first
+        <select id="proactiveSelect">
+          <option value="off">Never - only answer me</option>
+          <option value="minimal">Greetings and reminders I asked for</option>
+          <option value="normal">Also an occasional idea when I'm quiet</option>
+        </select>
+      </label>
       <label>Character <select id="characterSelect"></select></label>
       <label>Model <select id="modelSelect"></select></label>
       <label>Voice <select id="voiceSelect"></select></label>
@@ -87,7 +143,11 @@
         <input type="file" id="vrmFile" accept=".vrm">
       </label>
       <p class="small" id="engineInfo"></p>
-      <p class="small" id="latencyInfo"></p>
+      <details class="dev">
+        <summary>Developer diagnostics</summary>
+        <p class="small" id="latencyInfo">No reply measured yet.</p>
+        <pre id="statusInfo" class="small">Open to load…</pre>
+      </details>
       <div class="dialog-actions"><button value="close">Done</button></div>
     </form>
   </dialog>
