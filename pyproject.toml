@@ -16,6 +16,7 @@ dependencies = [
   "httpx>=0.27",
   "PyYAML>=6.0",
   "numpy>=1.24",
+  "tzdata; sys_platform == 'win32'",   # IANA timezones for zoneinfo on Windows (optional; tools degrade without it)
 ]
 
 [project.optional-dependencies]

@@ -42,9 +42,18 @@ class DateTimeTool(Tool):
         timezone: Optional[str] = Field(None, max_length=64, description="IANA timezone name; omit for local time")
 
     async def run(self, args: Any, ctx: ToolContext) -> Any:
-        now = _local_now(args.timezone or ctx.cfg.proactive.timezone)
-        return {"datetime": now.isoformat(timespec="minutes"), "weekday": now.strftime("%A"),
-                "timezone": str(now.tzinfo)}
+        note = None
+        try:
+            now = _local_now(args.timezone or ctx.cfg.proactive.timezone)
+        except ToolError:
+            local = _local_now()
+            if not args.timezone:
+                raise
+            now, note = local, (f"no timezone data for '{args.timezone}' on this computer; this is the "
+                                f"computer's local time (UTC{local.strftime('%z')}). Convert only if you are sure.")
+        out = {"datetime": now.isoformat(timespec="minutes"), "weekday": now.strftime("%A"),
+               "timezone": now.tzname() or str(now.tzinfo)}
+        return {**out, "note": note} if note else out
 
     def summarize(self, args: Any, result: Any) -> str:
         return f"checked the time ({result['timezone']})"
@@ -166,22 +175,31 @@ class RememberTool(Tool):
 
 class ForgetMemoryTool(Tool):
     name = "forget_memory"
-    description = ("Permanently delete one memory by id when the user asks you to forget something. "
-                   "Find the id with search_memory first, and tell the user what you deleted.")
+    description = ("Forget something when the user asks. Pass memory_id (from search_memory) to delete a stored "
+                   "memory, and/or claim (a short third-person statement like \"User lives in Pune\") so it is "
+                   "also never saved later from earlier conversation. Tell the user what you forgot.")
     permission = "memory"
 
     class Args(Args):
-        memory_id: str = Field(pattern=r"^[a-f0-9]{8,32}$")
+        memory_id: Optional[str] = Field(None, pattern=r"^[A-Za-z0-9_-]{1,64}$")
+        claim: Optional[str] = Field(None, min_length=4, max_length=200)
 
     async def run(self, args: Any, ctx: ToolContext) -> Any:
         mem = _memory(ctx)
-        m = mem.store.get(args.memory_id, profile=mem.profile)
-        if m is None or not mem.forget(args.memory_id):
-            raise ToolError("no memory with that id")
-        return {"deleted": True, "claim": m.content}
+        if not args.memory_id and not args.claim:
+            raise ToolError("give memory_id or claim")
+        deleted = None
+        if args.memory_id:
+            m = mem.store.get(args.memory_id, profile=mem.profile)
+            if m is None or not mem.forget(args.memory_id):
+                raise ToolError("no memory with that id")
+            deleted = m.content
+        if args.claim:
+            await mem.block(args.claim)
+        return {"deleted": deleted, "blocked_from_future_extraction": args.claim}
 
     def summarize(self, args: Any, result: Any) -> str:
-        return f"forgot: {result['claim']}"
+        return f"forgot: {result['deleted'] or result['blocked_from_future_extraction']}"
 
 
 # ------------------------------------------------------------------ notes
@@ -237,9 +255,9 @@ def _parse_due(due: Optional[str], in_minutes: Optional[int]) -> Optional[float]
 
 class AddTaskTool(Tool):
     name = "add_task"
-    description = ("Add a task to the user's to-do list, optionally with a reminder time. Reminders are spoken "
-                   "only while the Riko app is open; say so if it matters. Give either due (local ISO time) "
-                   "or in_minutes, computed from the current time.")
+    description = ("Add a task to the user's to-do list, optionally with a reminder. For relative times (\"in 30 "
+                   "minutes\") use in_minutes; use due only for a clock time (local ISO, e.g. 2026-10-07T09:00). "
+                   "Reminders are spoken only while the Riko app is open; say so if it matters.")
     permission = "memory"
 
     class Args(Args):

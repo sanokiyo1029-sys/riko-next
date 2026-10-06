@@ -135,8 +135,10 @@ class ToolRegistry:
 
         if tool is None or not self.allowed(tool, ctx):
             return fail(f"tool '{call.name}' is not available", f"unavailable tool: {call.name[:40]}")
+        # Models often send "" or null for optional arguments they don't use; treat those as absent.
+        cleaned = {k: v for k, v in call.arguments.items() if v not in ("", None)}
         try:
-            args = tool.Args.model_validate(call.arguments)
+            args = tool.Args.model_validate(cleaned)
         except ValidationError as e:
             first = e.errors()[0] if e.errors() else {}
             return fail(f"invalid arguments: {first.get('loc', '')} {first.get('msg', '')}",

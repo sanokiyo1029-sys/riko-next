@@ -51,9 +51,9 @@ FALLBACKS = {
     "timeout": "Sorry, that's taking me too long. Could you try again in a moment?",
 }
 
-TOOLS_NOTE = ("You have tools. Use one whenever it gives a better answer: exact arithmetic, the current time, "
-              "the user's saved memories, notes, tasks and reminders, and anything else listed. You may chain "
-              "several tool calls. Before a slow tool, a few words like \"Let me check.\" are fine. Never claim "
+TOOLS_NOTE = ("You have tools. Use one only when it is actually needed for the answer: exact arithmetic, the "
+              "current time in another timezone, the user's saved memories, notes, tasks and reminders, and "
+              "anything else listed. Most replies need no tool. You may chain several tool calls. Before a slow tool, a few words like \"Let me check.\" are fine. Never claim "
               "something was saved, scheduled, found or deleted unless a tool result says so.")
 
 VISION_PROMPT = ("Describe this image for an assistant that cannot see it. Be factual and specific: main "
