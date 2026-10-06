@@ -91,11 +91,46 @@ export class AudioEngine {
   }
 
   // Browser speechSynthesis fallback (tts.provider: browser)
-  speak(text, { speed = 1, onStart } = {}) {
+  // Browser voice: a configured name, else the first female voice (local ones first). Windows' default
+  // voice is often male ("Microsoft David"), so never rely on the default.
+  setVoicePreference(name = '', pitch = 1.15) { this.voiceName = name; this.voicePitch = pitch; this.voice = null; }
+
+  _pickVoice() {
+    if (this.voice) return this.voice;
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return null;
+    const want = (this.voiceName || '').toLowerCase();
+    const female = ['zira', 'heera', 'aria', 'jenny', 'sonia', 'libby', 'natasha', 'hazel', 'susan', 'clara', 'emma',
+      'ava', 'michelle', 'samantha', 'victoria', 'karen', 'moira', 'tessa', 'fiona', 'female', 'woman'];
+    const en = voices.filter((v) => v.lang.toLowerCase().startsWith('en'));
+    const rank = (v) => female.findIndex((f) => v.name.toLowerCase().includes(f));
+    const byScore = (list) => list.sort((a, b) => (b.localService - a.localService) || (rank(a) - rank(b)));
+    this.voice = (want && voices.find((v) => v.name.toLowerCase().includes(want)))
+      || byScore(en.filter((v) => female.some((f) => v.name.toLowerCase().includes(f))))[0]
+      || byScore(voices.filter((v) => female.some((f) => v.name.toLowerCase().includes(f))))[0]
+      || null;
+    if (this.voice) console.info('[voice] browser voice:', this.voice.name);
+    return this.voice;
+  }
+
+  speak(text, opts = {}) {
     if (!window.speechSynthesis || this.muted) return;
+    if (!this.voice && !window.speechSynthesis.getVoices().length) {
+      // the voice list loads asynchronously; queue until it's there (max 1.5 s) so we never fall back to
+      // the default (often male) voice
+      this.speechQueue++;
+      const go = () => { if (done) return; done = true; this.speechQueue--; this.speak(text, opts); };
+      let done = false;
+      window.speechSynthesis.addEventListener('voiceschanged', go, { once: true });
+      setTimeout(go, 1500);
+      return;
+    }
+    const { speed = 1, onStart } = opts;
     const u = new SpeechSynthesisUtterance(text);
+    const voice = this._pickVoice();
+    if (voice) { u.voice = voice; u.lang = voice.lang; }
     u.rate = Math.max(0.5, Math.min(2, speed));
-    u.pitch = 1.25;
+    u.pitch = this.voicePitch ?? 1.15;
     this.speechQueue++;
     u.onstart = () => { this._setPlaying(true); onStart?.(); };
     u.onboundary = () => { this.fakeLevel = 0.9; };

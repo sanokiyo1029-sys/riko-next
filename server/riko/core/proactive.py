@@ -110,8 +110,12 @@ class ProactiveController:
                 return "reminder"
         if self.greeting_due():
             self.greeting_eligible = False
-            await s.proactive_turn("greeting", GREETING)
-            return "greeting"
+            gap = s.s.config.memory.familiarity.session_gap_minutes * 60
+            last = s.s.status.get("last_greeting_at", 0.0)
+            if time.time() - last > gap:  # another tab already greeted in this logical session
+                s.s.status["last_greeting_at"] = time.time()
+                await s.proactive_turn("greeting", GREETING)
+                return "greeting"
         now = time.monotonic()
         if self.nudge_due(now):
             self.nudges += 1

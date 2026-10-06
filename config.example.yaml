@@ -78,6 +78,8 @@ tts:
   max_spoken_sentences: 3       # for replies to voice; the rest is shown on screen (0 = unlimited)
   max_spoken_words: 90
   fallback: browser             # if GPT-SoVITS isn't running: browser voice (or none = text only)
+  browser_voice: ""             # part of a voice name, e.g. Zira, Aria; empty = first female voice
+  browser_pitch: 1.15
   voices:
     riko:
       ref_audio: characters/voices/riko_sample.wav   # 3-10 s clip, from the original Project Riko

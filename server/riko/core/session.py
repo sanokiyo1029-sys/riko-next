@@ -210,6 +210,7 @@ class ConversationSession:
         self._closed = False
         self._static_cache: tuple[Any, str] = (None, "")
         self.last_image_id: Optional[str] = None
+        self._tts_notice_sent = False
         self.last_activity = time.monotonic()
         self.user_turns = 0
         self.logical_key = uuid.uuid4().hex[:12]
@@ -262,6 +263,14 @@ class ConversationSession:
         m = self.s.memory
         return m if m is not None and m.enabled else None
 
+    def _vrm_found(self) -> bool:
+        from ..api.server import WEB_DIR  # local import: the api package imports this module
+        url = self.s.config.frontend.avatar.vrm_url
+        if not url or "://" in url:
+            return bool(url)
+        p = (WEB_DIR / url).resolve()
+        return p.is_relative_to(WEB_DIR.resolve()) and p.is_file()
+
     def _relationship(self) -> Optional[dict[str, Any]]:
         m = self.s.memory
         return m.store.get_relationship(m.character, profile=m.profile) if m else None
@@ -281,7 +290,9 @@ class ConversationSession:
             "memory_enabled": bool(self.memory), "emotion": cfg.emotion.enabled, "emotions": list(EMOTIONS),
             "tools": cfg.tools.enabled, "proactive_level": self.proactive_level,
             "barge_in": cfg.audio.barge_in.enabled, "duck_volume": cfg.audio.barge_in.duck_volume,
-            "avatar": cfg.frontend.avatar.model_dump(), "show_tokens": cfg.frontend.show_token_stream,
+            "avatar": {**cfg.frontend.avatar.model_dump(), "vrm_found": self._vrm_found()},
+            "browser_voice": cfg.tts.browser_voice, "browser_pitch": cfg.tts.browser_pitch,
+            "show_tokens": cfg.frontend.show_token_stream,
             "familiarity": STAGE_LABELS.get(self.stage, "unknown"),
         }
 
@@ -824,9 +835,10 @@ class ConversationSession:
     async def _tts_down(self, err: Optional[str] = None) -> None:
         """Mark the TTS server down for 30 s (shared by all turns/tabs) and tell the user once, calmly."""
         self.s.status["tts_down_until"] = time.monotonic() + 30.0
-        if self.s.status.get("tts_down_notified"):
-            return
         self.s.status["tts_down_notified"] = True
+        if self._tts_notice_sent:
+            return
+        self._tts_notice_sent = True
         browser = self.s.config.tts.fallback == "browser"
         log.warning("TTS server unreachable; using fallback", extra={"fallback": self.s.config.tts.fallback,
                                                                       "error": (err or "")[:200]})
@@ -840,7 +852,7 @@ class ConversationSession:
         # A dead TTS server is skipped for 30 s across turns, then retried; meanwhile the fallback voice speaks.
         tts_down = self.s.status.get("tts_down_until", 0.0) > time.monotonic()
         browser_fallback = self.s.config.tts.fallback == "browser"
-        if tts_down and not self.s.status.get("tts_down_notified"):
+        if tts_down and not self._tts_notice_sent:
             await self._tts_down()  # detected at startup: still tell the user once
         mood = self._mood()
         mood_speed = MoodModel.speed_factor(mood) if mood else 1.0

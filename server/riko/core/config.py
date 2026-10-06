@@ -209,6 +209,10 @@ class TTSConfig(_Strict):
     # When the TTS server is unreachable: speak with the browser's built-in voice ("browser") or stay silent
     # ("none"). The server is retried every 30 s and takes over again as soon as it answers.
     fallback: Literal["browser", "none"] = "browser"
+    # Browser voice to use (part of its name, e.g. "Zira", "Aria", "Google UK English Female").
+    # Empty = the first female voice found, preferring voices that run locally.
+    browser_voice: str = Field("", max_length=80)
+    browser_pitch: float = Field(1.15, ge=0.5, le=2.0)
     voices: dict[str, VoiceConfig] = Field(default_factory=lambda: {"riko": VoiceConfig()})
     strip_actions: bool = True
     gpt_sovits: GPTSoVITSConfig = Field(default_factory=GPTSoVITSConfig)

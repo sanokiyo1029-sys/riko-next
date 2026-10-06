@@ -479,6 +479,15 @@ def create_app(cfg: RikoConfig, services: Optional[Services] = None, *, warmup: 
         log.exception("unhandled HTTP error", extra={"path": request.url.path})
         return JSONResponse({"error": "internal error"}, status_code=500)
 
+    @app.middleware("http")
+    async def _no_stale_client(request: Request, call_next: Any) -> Any:
+        # Browsers otherwise keep running an old app.js/audio.js after an update; files are tiny and local,
+        # so always revalidate (ETag -> 304 when unchanged).
+        response = await call_next(request)
+        if not request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     if WEB_DIR.is_dir():
         app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
     return app

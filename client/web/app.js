@@ -277,6 +277,7 @@ function applySettings(s) {
     + ` · memory ${s.memory_enabled ? 'on' : 'off'} · tools ${s.tools ? 'on' : 'off'}`;
   $('attachBtn').hidden = $('cameraBtn').hidden = false;
   state.audio?.setMuted(s.muted);
+  state.audio?.setVoicePreference(s.browser_voice, s.browser_pitch);
 }
 
 async function loadHistory() {
@@ -448,6 +449,8 @@ async function start() {
     $('micBtn').setAttribute('aria-pressed', 'false');
     $('micBtn').textContent = 'Mic off';
   }
+  state.audio.setVoicePreference(state.settings.browser_voice, state.settings.browser_pitch);
+  window.speechSynthesis?.getVoices();   // starts loading the voice list early
   state.audio.setActiveTurn(state.activeTurn);
   state.audio.setMuted(!!state.settings.muted);
   $('startGate').remove();
@@ -619,6 +622,10 @@ function frame(now) {
   });
   await waitHello();
   const av = state.settings.avatar || { enabled: true, vrm_url: '' };
+  if (av.enabled && av.vrm_url && !av.vrm_found) {
+    note(`Avatar file ${av.vrm_url} not found, so the 2D face is shown. In VRoid Studio open your model, `
+      + `choose Export as VRM, and save it as client/web/${av.vrm_url}, then reload this page.`, 'info');
+  }
   state.avatar = await createAvatar($('avatar'), { vrmUrl: av.vrm_url, enabled: av.enabled });
   if (state.mood) state.avatar?.setMood?.(state.mood);
   requestAnimationFrame(frame);
