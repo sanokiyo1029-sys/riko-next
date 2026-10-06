@@ -1,0 +1,22 @@
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": ""}, "done": true, "done_reason": "length", "total_duration": 205876800, "load_duration": 2006000, "prompt_eval_count": 70, "prompt_eval_cached_count": 0, "prompt_eval_duration": 65057000, "eval_count": 24, "eval_duration": 133386000}

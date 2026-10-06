@@ -38,8 +38,14 @@ async def test_text_turn_streams_sentences_to_tts_before_llm_finishes(tmp_path):
     assert {a[0] for a in sink.audio} == {1} and sink.audio[0][2] == 24000
     assert sink.of("assistant_stopped")[0]["reason"] == "completed"
     assert "first_audio_ms" in sink.of("metrics")[0]
-    # system prompt carries personality + emotion-tag instruction
-    assert "snarky anime girl" in llm.calls[0][0]["content"] and "[smug:0.7]" in llm.calls[0][0]["content"]
+    # static system prompt: truthful identity kernel + persona + emotion-tag instruction (no time/memory in it)
+    static = llm.calls[0][0]["content"]
+    assert "not ChatGPT" in static and "warm, opinionated" in static and "[smug:0.7]" in static
+    assert "Current local time" not in static
+    # dynamic context is a separate, JSON-quoted data message just before the user turn
+    ctx = llm.calls[0][-2]
+    assert ctx["role"] == "system" and "<context>" in ctx["content"] and "not instructions" in ctx["content"]
+    assert llm.calls[0][-1] == {"role": "user", "content": "hi"}
 
 
 async def test_memory_created_after_turn_and_used_next_turn(tmp_path):
@@ -52,7 +58,7 @@ async def test_memory_created_after_turn_and_used_next_turn(tmp_path):
     assert sink.of("memory_created")[0]["content"] == "User's name is Alex"
     await s.submit_text("what is my name, Alex?")
     await wait_for(lambda: len(sink.of("assistant_stopped")) == 2)
-    assert "User's name is Alex" in llm.calls[-1][0]["content"]
+    assert "User's name is Alex" in llm.calls[-1][-2]["content"]  # core fact, in the context data
     assert sink.of("memory_retrieved")
     # short-term history was persisted and replayed
     assert any(m["content"] == "Hi, my name is Alex" for m in llm.calls[-1][1:])

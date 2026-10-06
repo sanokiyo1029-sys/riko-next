@@ -56,9 +56,11 @@ async def test_decay_cleanup_and_working_expiry(tmp_path):
 
 async def test_llm_extraction_with_code_fences(tmp_path):
     async def complete(msgs):
-        assert "User: my name is Alex" in msgs[0]["content"]
-        return '```json\n[{"layer":"semantic","content":"User\'s name is Alex","importance":9,"category":"identity"},' \
-               '{"layer":"bogus","content":"x"}]\n```'
+        assert '"user": "my name is Alex"' in msgs[0]["content"]
+        return ('```json\n{"memories": [{"layer":"semantic","claim":"User\'s name is Alex","evidence":"my name is Alex",'
+                '"speaker":"user","importance":9,"confidence":0.9,"category":"identity"},'
+                '{"layer":"bogus","claim":"xxxx","evidence":"x","speaker":"user","importance":1,"confidence":1,'
+                '"category":"x"}]}\n```')
     m = mgr(tmp_path, complete)
     created = await m.extract_from_turn("my name is Alex", "[happy] Nice to meet you, Alex.")
     assert [c.content for c in created] == ["User's name is Alex"] and created[0].importance == 0.9
@@ -70,7 +72,7 @@ async def test_extraction_falls_back_to_heuristics(tmp_path):
     m = mgr(tmp_path, broken)
     created = await m.extract_from_turn("Call me Kai. I really love horror movies.", "ok")
     assert {c.content for c in created} == {"User wants to be called Kai", "User loves horror movies"}
-    assert heuristic_extract("Remember that my exam is on Friday")[0]["content"] == "User's exam is on Friday"
+    assert heuristic_extract("Remember that my exam is on Friday")[0]["claim"] == "User's exam is on Friday"
     assert parse_json_array("nothing here") == []
 
 

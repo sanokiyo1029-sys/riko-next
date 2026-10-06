@@ -1,0 +1,13 @@
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "Hello"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": ","}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": " how"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": " are"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": " you"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": " today"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "?"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": ""}, "done": true, "done_reason": "stop", "total_duration": 169345600, "load_duration": 2548000, "prompt_eval_count": 73, "prompt_eval_cached_count": 65, "prompt_eval_duration": 29362000, "eval_count": 22, "eval_duration": 134523000}

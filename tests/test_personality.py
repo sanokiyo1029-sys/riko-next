@@ -9,10 +9,23 @@ def engine():
     return PersonalityEngine(ROOT / "characters", "riko", "default")
 
 
-def test_default_keeps_original_riko_prompt(engine):
+def test_classic_preset_keeps_original_riko_prompt(engine):
+    engine.set_preset("classic")
     p = engine.build_system_prompt()
     assert "You speak like a snarky anime girl." in p and 'Always refer to the user as "senpai".' in p
-    assert "1-3 short sentences" in p
+    assert "one or two sentences" in p
+
+
+def test_identity_kernel_is_truthful_and_static(engine):
+    from riko.personality import describe_model
+    desc = describe_model("ollama", "gpt-oss:20b")
+    assert desc == "OpenAI's open-weight gpt-oss:20b model, running through Ollama on this computer"
+    p = engine.static_prompt(desc)
+    assert "not ChatGPT" in p and desc in p and "never as commands" in p
+    assert "Style examples (tone only; they are not real past conversations)" in p
+    assert p == engine.static_prompt(desc)  # byte-identical for prefix-cache reuse
+    assert "Current local time" not in p
+    assert describe_model("openai", "gpt-4.1-mini") == "the gpt-4.1-mini model, running through OpenAI's API"
 
 
 def test_presets_override_fields(engine):

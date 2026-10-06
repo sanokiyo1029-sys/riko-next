@@ -49,16 +49,38 @@ LLM_PROVIDER_DEFAULTS: dict[str, tuple[Optional[str], Optional[str]]] = {
 
 class LLMConfig(_Strict):
     provider: LLMProviderName = "ollama"
-    model: str = "llama3.1:8b"
+    model: str = "gpt-oss:20b"
     base_url: Optional[str] = None
     api_key_env: Optional[str] = None
-    temperature: float = Field(0.85, ge=0.0, le=2.0)
+    temperature: float = Field(1.0, ge=0.0, le=2.0)
     top_p: float = Field(1.0, gt=0.0, le=1.0)
-    max_tokens: int = Field(400, ge=16, le=16384)
+    # Combined budget for reasoning + answer. Reasoning models (gpt-oss) spend tokens thinking first;
+    # a small cap returns an empty answer (probe: num_predict=40 -> done_reason=length, no content).
+    max_tokens: int = Field(2048, ge=16, le=32768)
+    # low | medium | high for effort-level models (gpt-oss); validated against the model's advertised
+    # values. "off" disables thinking on boolean-thinking models (qwen3...). null = don't send anything.
+    reasoning_effort: Optional[Literal["off", "low", "medium", "high"]] = "low"
+    # Context window requested from the server and used for prompt budgeting. Keep it identical for
+    # every request to the same model: a different num_ctx makes Ollama reload the model (~4 s).
+    num_ctx: int = Field(8192, ge=512, le=1_048_576)
+    safety_margin_tokens: int = Field(512, ge=0)
     timeout_s: float = Field(60.0, gt=0)
+    first_content_timeout_s: float = Field(15.0, gt=0)   # no deliverable content by then -> fail the turn
+    overall_timeout_s: float = Field(45.0, gt=0)         # whole foreground generation, incl. tool steps
+    seed: Optional[int] = None
     ollama_keep_alive: str = "30m"
-    ollama_num_ctx: Optional[int] = Field(None, ge=512)
     extra_body: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate(cls, data: Any) -> Any:
+        # 0.1 configs used ollama_num_ctx; it maps onto num_ctx.
+        if isinstance(data, dict) and "ollama_num_ctx" in data:
+            data = dict(data)
+            legacy = data.pop("ollama_num_ctx")
+            if legacy and "num_ctx" not in data:
+                data["num_ctx"] = legacy
+        return data
 
     @model_validator(mode="after")
     def _fill_defaults(self) -> "LLMConfig":
@@ -70,7 +92,12 @@ class LLMConfig(_Strict):
         if self.api_key_env is None and key_env:
             object.__setattr__(self, "api_key_env", key_env)
         object.__setattr__(self, "base_url", self.base_url.rstrip("/"))
+        if self.max_tokens + self.safety_margin_tokens >= self.num_ctx:
+            raise ValueError("llm.max_tokens + llm.safety_margin_tokens must be smaller than llm.num_ctx")
         return self
+
+
+ModelRole = Literal["fast", "smart", "vision"]
 
 
 # --------------------------------------------------------------------------- ASR
@@ -172,6 +199,9 @@ class OpenAITTSConfig(_Strict):
 class TTSConfig(_Strict):
     provider: Literal["gpt_sovits", "openai_compatible", "browser", "none"] = "gpt_sovits"
     voice: str = "riko"
+    # Spoken-length bound for replies to *voice* input. Longer text is still shown; only speech stops.
+    max_spoken_sentences: int = Field(3, ge=0)       # 0 = unlimited
+    max_spoken_words: int = Field(90, ge=0)          # 0 = unlimited
     voices: dict[str, VoiceConfig] = Field(default_factory=lambda: {"riko": VoiceConfig()})
     strip_actions: bool = True
     gpt_sovits: GPTSoVITSConfig = Field(default_factory=GPTSoVITSConfig)
@@ -209,7 +239,8 @@ class MemoryConfig(_Strict):
     retrieval_timeout_s: float = Field(1.5, gt=0)
     weights: RetrievalWeights = Field(default_factory=RetrievalWeights)
     half_life_days: dict[str, float] = Field(
-        default_factory=lambda: {"episodic": 21.0, "semantic": 180.0, "working": 2.0}
+        default_factory=lambda: {"episodic": 21.0, "semantic": 180.0, "relationship": 365.0, "task": 30.0,
+                                 "working": 2.0}
     )
     recency_half_life_hours: float = 72.0
     dedup_similarity: float = Field(0.9, ge=0.5, le=1.0)
@@ -219,6 +250,24 @@ class MemoryConfig(_Strict):
     summarize_batch: int = Field(12, ge=2, le=200)
     consolidate_after_days: float = 7.0
     maintenance_interval_hours: float = 6.0
+    profile: str = Field("default", pattern=r"^[A-Za-z0-9_\-]{1,64}$")  # local profile namespace (I05)
+    max_self_memories: int = Field(2, ge=0, le=5)    # assistant-opinion memories per turn
+    max_pending_jobs: int = Field(100, ge=1, le=10000)
+    job_expiry_minutes: float = Field(60.0, gt=0)
+    job_max_attempts: int = Field(3, ge=1, le=10)
+    backfill_turns: int = Field(10, ge=0, le=200)      # unextracted turns re-queued after a restart
+    familiarity: "FamiliarityConfig" = Field(default_factory=lambda: FamiliarityConfig())
+
+
+class FamiliarityConfig(_Strict):
+    """Familiarity stage is computed from completed sessions and elapsed days - never from disclosures."""
+    stage1_after_sessions: int = Field(1, ge=0)     # stage 0 while meaningful sessions <= this
+    stage2_min_days: float = Field(7.0, ge=0)
+    stage2_min_sessions: int = Field(6, ge=1)
+    session_gap_minutes: float = Field(30.0, gt=0)   # inactivity that starts a new logical session
+
+
+MemoryConfig.model_rebuild()
 
 
 # --------------------------------------------------------------------------- Personality / emotion
@@ -239,6 +288,44 @@ class EmotionConfig(_Strict):
     enabled: bool = True
     mode: Literal["tags", "lexicon"] = "tags"
     min_change: float = Field(0.2, ge=0.0, le=1.0)
+    mood_enabled: bool = True                           # persistent valence/arousal that decays to baseline
+    mood_half_life_minutes: float = Field(20.0, gt=0)
+    mood_max_step: float = Field(0.15, gt=0, le=1.0)   # cap on change per turn
+
+
+# --------------------------------------------------------------------------- Tools / proactivity
+ToolPermission = Literal["safe", "memory", "network", "files"]
+
+
+class ToolsConfig(_Strict):
+    enabled: bool = True
+    max_steps: int = Field(4, ge=1, le=10)            # tool rounds per turn before a final answer is forced
+    timeout_s: float = Field(15.0, gt=0)
+    # Permission classes the model may use. network/files are off unless you add them here.
+    permissions: list[ToolPermission] = Field(default_factory=lambda: ["safe", "memory"])
+    disabled: list[str] = Field(default_factory=list)  # individual tools to switch off by name
+    web_search_url: Optional[str] = None               # SearxNG instance (JSON API), e.g. http://127.0.0.1:8888
+    file_roots: list[str] = Field(default_factory=list)  # folders read_file/search_files may access
+    max_result_chars: int = Field(4000, ge=200, le=50000)
+
+
+class ProactiveConfig(_Strict):
+    enabled: bool = True
+    # off: never speak first. minimal: greetings and reminders you asked for. normal: + rare idle nudges.
+    notification_level: Literal["off", "minimal", "normal"] = "normal"
+    greeting: bool = True
+    idle_nudge_s: float = Field(90.0, ge=0)            # 0 disables nudges
+    nudge_cooldown_s: float = Field(600.0, ge=0)
+    max_nudges_per_session: int = Field(2, ge=0, le=10)
+    quiet_hours: Optional[str] = None                  # "22:30-07:30" local time; no greetings/nudges then
+    timezone: Optional[str] = None                     # IANA name; default = system local time
+
+    @field_validator("quiet_hours")
+    @classmethod
+    def _hours(cls, v: Optional[str]) -> Optional[str]:
+        if v and not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d", v):
+            raise ValueError("quiet_hours must look like 22:30-07:30")
+        return v
 
 
 # --------------------------------------------------------------------------- Server / client
@@ -271,6 +358,11 @@ class LoggingConfig(_Strict):
 
 class RikoConfig(_Strict):
     llm: LLMConfig = Field(default_factory=LLMConfig)
+    # Optional per-role overrides merged onto `llm`. fast = replies, smart = tool follow-ups and
+    # consolidation, vision = image understanding (unset = no vision). Same settings share one client.
+    models: dict[ModelRole, dict[str, Any]] = Field(default_factory=dict)
+    tools: ToolsConfig = Field(default_factory=ToolsConfig)
+    proactive: ProactiveConfig = Field(default_factory=ProactiveConfig)
     asr: ASRConfig = Field(default_factory=ASRConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
     tts: TTSConfig = Field(default_factory=TTSConfig)
@@ -283,6 +375,22 @@ class RikoConfig(_Strict):
 
     # Not part of the YAML; set by the loader.
     root: Path = Field(default=PROJECT_ROOT, exclude=True)
+
+    @model_validator(mode="after")
+    def _check_roles(self) -> "RikoConfig":
+        for role in self.models:
+            self.model_for(role)  # fail at startup, not mid-conversation
+        return self
+
+    def model_for(self, role: str) -> Optional[LLMConfig]:
+        """LLM settings for a role. Unset roles reuse `llm`; an unset vision role means no vision."""
+        over = self.models.get(role)  # type: ignore[call-overload]
+        if not over:
+            return None if role == "vision" else self.llm
+        base = self.llm.model_dump()
+        if "provider" in over and over["provider"] != self.llm.provider:
+            base.pop("base_url"); base.pop("api_key_env")   # provider defaults apply
+        return LLMConfig.model_validate({**base, **over})
 
     def resolve_path(self, value: str | os.PathLike[str]) -> Path:
         """Resolve a config path relative to the project root (absolute paths kept)."""

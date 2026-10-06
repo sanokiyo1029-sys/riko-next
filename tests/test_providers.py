@@ -56,7 +56,7 @@ async def test_openai_error_is_readable_and_keyless():
 async def test_ollama_ndjson_stream():
     def handler(req):
         body = json.loads(req.content)
-        assert body["keep_alive"] == "30m" and body["options"]["num_predict"] == 400
+        assert body["keep_alive"] == "30m" and body["options"]["num_predict"] == 2048
         lines = [{"message": {"content": "Hi "}, "done": False}, {"message": {"content": "senpai"}, "done": False},
                  {"message": {"content": ""}, "done": True}]
         return httpx.Response(200, content="\n".join(json.dumps(x) for x in lines).encode())

@@ -19,19 +19,27 @@ class EmotionStyle:
     expression: str  # VRM expression preset: neutral/happy/angry/sad/relaxed/surprised
     style: str
     speed: float
+    valence: float   # -1..1, feeds the persistent mood
+    arousal: float   # 0..1
 
 
 EMOTIONS: dict[str, EmotionStyle] = {
-    "neutral": EmotionStyle("neutral", "calm", 1.0),
-    "happy": EmotionStyle("happy", "cheerful", 1.04),
-    "excited": EmotionStyle("happy", "energetic", 1.1),
-    "smug": EmotionStyle("relaxed", "teasing", 1.0),
-    "embarrassed": EmotionStyle("happy", "flustered", 1.06),
-    "sad": EmotionStyle("sad", "soft", 0.92),
-    "angry": EmotionStyle("angry", "sharp", 1.05),
-    "surprised": EmotionStyle("surprised", "lively", 1.08),
-    "thinking": EmotionStyle("neutral", "thoughtful", 0.96),
-    "concerned": EmotionStyle("sad", "gentle", 0.95),
+    "neutral": EmotionStyle("neutral", "calm", 1.0, 0.0, 0.35),
+    "calm": EmotionStyle("relaxed", "calm", 0.98, 0.2, 0.2),
+    "happy": EmotionStyle("happy", "cheerful", 1.04, 0.7, 0.55),
+    "excited": EmotionStyle("happy", "energetic", 1.1, 0.8, 0.9),
+    "playful": EmotionStyle("happy", "teasing", 1.05, 0.6, 0.65),
+    "smug": EmotionStyle("relaxed", "teasing", 1.0, 0.4, 0.5),
+    "curious": EmotionStyle("surprised", "inquisitive", 1.02, 0.35, 0.55),
+    "serious": EmotionStyle("neutral", "steady", 0.97, 0.0, 0.4),
+    "thinking": EmotionStyle("neutral", "thoughtful", 0.96, 0.05, 0.35),
+    "empathetic": EmotionStyle("relaxed", "warm", 0.95, 0.2, 0.3),
+    "concerned": EmotionStyle("sad", "gentle", 0.95, -0.2, 0.4),
+    "confused": EmotionStyle("surprised", "hesitant", 0.97, -0.1, 0.45),
+    "embarrassed": EmotionStyle("happy", "flustered", 1.06, 0.2, 0.7),
+    "surprised": EmotionStyle("surprised", "lively", 1.08, 0.2, 0.8),
+    "sad": EmotionStyle("sad", "soft", 0.92, -0.6, 0.25),
+    "angry": EmotionStyle("angry", "sharp", 1.05, -0.6, 0.8),
 }
 
 _TAG = re.compile(r"\[\s*([A-Za-z]+)\s*(?::\s*(\d*\.?\d+))?\s*\]\s*")
@@ -46,6 +54,10 @@ _LEXICON: dict[str, tuple[str, ...]] = {
     "surprised": ("what?", "huh?", "really?", "no way", "whoa", "eh?"),
     "thinking": ("hmm", "let me think", "maybe", "i wonder", "perhaps"),
     "concerned": ("are you okay", "be careful", "worried", "take care", "rest"),
+    "curious": ("tell me more", "how come", "what made you", "i'm curious", "interesting"),
+    "empathetic": ("that sounds hard", "that sounds rough", "i'm here", "makes sense that you", "understandable"),
+    "confused": ("i'm not sure", "wait, what", "i don't follow", "confusing"),
+    "playful": ("just kidding", "gotcha", "nice try"),
 }
 
 
@@ -122,3 +134,6 @@ class EmotionAnalyzer:
             return None
         self.current = state
         return state
+
+
+from .mood import Mood, MoodModel, UserAffect, classify_user_affect  # noqa: E402

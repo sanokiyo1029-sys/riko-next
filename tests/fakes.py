@@ -32,10 +32,12 @@ class FakeLLM(LLMProvider):
         self.calls.append(messages)
         last = messages[-1]["content"]
         if "long-term memory" in last:
-            if "Alex" in last.split("Exchange:")[-1]:
-                yield '```json\n[{"layer": "semantic", "content": "User\'s name is Alex", "importance": 8, "category": "identity"}]\n```'
+            if "my name is Alex" in last.split("Exchange (JSON):")[-1]:
+                yield ('```json\n{"memories": [{"layer": "semantic", "claim": "User\'s name is Alex", '
+                       '"evidence": "my name is Alex", "speaker": "user", "importance": 8, "confidence": 0.9, '
+                       '"category": "identity", "corrects": null}]}\n```')
             else:
-                yield "[]"
+                yield '{"memories": []}'
             return
         if "running summary" in last or "Merge these" in last:
             yield "Summary of earlier things."

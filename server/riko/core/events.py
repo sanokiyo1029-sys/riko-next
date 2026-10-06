@@ -1,6 +1,10 @@
 """Server -> client events and the binary audio frame format.
 
-JSON events: ``{"type": <name>, "ts": <unix seconds>, ...fields}``
+JSON events: ``{"type": <legacy name>, "event": <dotted name>, "ts": <unix seconds>, ...fields}``
+
+``type`` keeps the original wire names so existing clients keep working; ``event`` carries the dotted
+name (``assistant.token``, ``tool.started`` ...). New clients switch on ``event``. Unknown events are
+ignored by both, so adding events never breaks a client.
 
 Binary audio frames (server -> client), little endian:
     bytes 0-3   magic  b"RKA1"
@@ -19,6 +23,7 @@ from typing import Any
 
 AUDIO_MAGIC = b"RKA1"
 AUDIO_HEADER = struct.Struct("<4sIII")
+PROTOCOL_VERSION = 2
 
 
 class Ev:
@@ -28,6 +33,7 @@ class Ev:
     USER_SPEECH_STOPPED = "user_speech_stopped"
     TRANSCRIPTION = "transcription"
     LLM_STARTED = "llm_started"
+    ASSISTANT_THINKING = "assistant_thinking"   # reasoning in progress - never carries reasoning text (I01)
     LLM_TOKEN = "llm_token"
     LLM_SENTENCE = "llm_sentence"
     LLM_FINISHED = "llm_finished"
@@ -39,6 +45,10 @@ class Ev:
     ASSISTANT_DUCK = "assistant_duck"
     ASSISTANT_UNDUCK = "assistant_unduck"
     EMOTION_CHANGED = "emotion_changed"
+    MOOD = "mood"
+    TOOL_STARTED = "tool_started"
+    TOOL_FINISHED = "tool_finished"
+    IMAGE_ANALYZED = "image_analyzed"
     MEMORY_CREATED = "memory_created"
     MEMORY_RETRIEVED = "memory_retrieved"
     SETTINGS = "settings"
@@ -47,8 +57,24 @@ class Ev:
     PONG = "pong"
 
 
+DOTTED = {
+    Ev.HELLO: "conversation.started", Ev.STATE: "state.changed",
+    Ev.USER_SPEECH_STARTED: "user.speaking", Ev.USER_SPEECH_STOPPED: "user.stopped",
+    Ev.TRANSCRIPTION: "transcription.final", Ev.LLM_STARTED: "assistant.started",
+    Ev.ASSISTANT_THINKING: "assistant.thinking", Ev.LLM_TOKEN: "assistant.token",
+    Ev.LLM_SENTENCE: "assistant.sentence", Ev.LLM_FINISHED: "assistant.text_done",
+    Ev.TTS_STARTED: "tts.started", Ev.TTS_FINISHED: "tts.finished", Ev.TTS_SPEAK: "tts.speak_in_browser",
+    Ev.ASSISTANT_SPEAKING: "assistant.speaking", Ev.ASSISTANT_STOPPED: "assistant.finished",
+    Ev.ASSISTANT_DUCK: "assistant.duck", Ev.ASSISTANT_UNDUCK: "assistant.unduck",
+    Ev.EMOTION_CHANGED: "assistant.emotion", Ev.MOOD: "assistant.mood",
+    Ev.TOOL_STARTED: "tool.started", Ev.TOOL_FINISHED: "tool.finished", Ev.IMAGE_ANALYZED: "image.analyzed",
+    Ev.MEMORY_CREATED: "memory.created", Ev.MEMORY_RETRIEVED: "memory.retrieved",
+    Ev.SETTINGS: "settings.changed", Ev.METRICS: "metrics", Ev.ERROR: "error", Ev.PONG: "pong",
+}
+
+
 def make_event(type_: str, **fields: Any) -> dict[str, Any]:
-    return {"type": type_, "ts": round(time.time(), 3), **fields}
+    return {"type": type_, "event": DOTTED.get(type_, type_), "ts": round(time.time(), 3), **fields}
 
 
 def encode_audio_frame(turn_id: int, sentence_index: int, sample_rate: int, pcm: bytes) -> bytes:

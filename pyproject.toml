@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "riko-next"
-version = "0.1.0"
+version = "0.2.0"
 description = "A modular, low-latency, local-first AI voice companion inspired by Project Riko"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = [
   "fastapi>=0.110",

@@ -1,0 +1,7 @@
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "thinking": "<redacted>"}, "done": false}
+{"model": "gpt-oss:20b", "message": {"role": "assistant", "content": "", "tool_calls": [{"id": "call_r6viwoj8", "function": {"index": 0, "name": "calculator", "arguments": {"expression": "12*34"}}}]}, "done": true, "done_reason": "stop", "total_duration": 281039900, "load_duration": 2135800, "prompt_eval_count": 127, "prompt_eval_cached_count": 0, "prompt_eval_duration": 77206000, "eval_count": 32, "eval_duration": 198543000}
