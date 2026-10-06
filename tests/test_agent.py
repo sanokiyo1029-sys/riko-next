@@ -4,7 +4,7 @@ import json
 
 from riko.core.session import ConversationSession
 from riko.llm import LLMError, LLMEvent, ToolCall
-from fakes import FakeTTS, RecordingSink, ScriptedLLM, make_services, test_config
+from fakes import FakeTTS, RecordingSink, ScriptedLLM, make_services, test_config as make_config
 from test_session import wait_for
 
 
@@ -64,7 +64,7 @@ async def test_multi_step_search_then_forget(tmp_path):
 
 
 async def test_tool_steps_are_bounded_and_invalid_args_reported(tmp_path):
-    cfg = test_config(tmp_path)
+    cfg = make_config(tmp_path)
     cfg.tools.max_steps = 2
     llm = ScriptedLLM([[call("calculator", expression=f"{i}+1"), ev("done")] for i in range(5)]
                       + [[ev("content", "Final answer."), ev("done")]])
@@ -80,7 +80,7 @@ async def test_tool_steps_are_bounded_and_invalid_args_reported(tmp_path):
 
 
 async def test_disallowed_tools_are_never_offered_or_run(tmp_path):
-    cfg = test_config(tmp_path)
+    cfg = make_config(tmp_path)
     llm = ScriptedLLM([[call("get_weather", location="Pune"), ev("done")], [ev("content", "No idea."), ev("done")]])
     svc = make_services(tmp_path, llm=llm, cfg=cfg)
     _, sink = await run(svc)
@@ -115,7 +115,7 @@ async def test_empty_answer_and_timeouts_use_labelled_fallback(tmp_path):
     assert sink.of("metrics")[0]["fallback"] == "empty_answer:length"
     assert "ran out of tokens" in sink.of("error")[0]["message"] and sink.of("llm_sentence")
 
-    cfg = test_config(tmp_path / "t")
+    cfg = make_config(tmp_path / "t")
     cfg.llm.first_content_timeout_s = 0.3
     slow = ScriptedLLM([[ev("thinking")] * 50 + [ev("content", "late"), ev("done")]], delay=0.05)
     _, sink2 = await run(make_services(tmp_path / "t", llm=slow, cfg=cfg))
@@ -139,7 +139,7 @@ async def test_one_bounded_retry_before_delivery(tmp_path):
 async def test_voice_replies_are_spoken_within_limits_but_fully_shown(tmp_path):
     long = " ".join(f"Sentence number {i} is here." for i in range(8))
     tts = FakeTTS()
-    cfg = test_config(tmp_path)
+    cfg = make_config(tmp_path)
     cfg.tts.max_spoken_sentences = 2
     svc = make_services(tmp_path, llm=ScriptedLLM([[ev("content", long + " "), ev("done")]]), tts=tts, cfg=cfg)
     _, sink = await run(svc, source="voice")

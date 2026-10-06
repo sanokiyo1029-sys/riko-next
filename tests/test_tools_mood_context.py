@@ -16,7 +16,7 @@ from riko.emotion import Mood, MoodModel, classify_user_affect, make_state
 from riko.llm import ToolCall
 from riko.tools import ToolContext, ToolError, default_registry
 from riko.tools.builtin import safe_eval, safe_path
-from fakes import RecordingSink, make_services, test_config
+from fakes import RecordingSink, make_services, test_config as make_config
 
 
 # ------------------------------------------------------------------ tools
@@ -176,7 +176,7 @@ async def test_greeting_once_after_ready_and_cancelled_by_user_speech(tmp_path):
 
 
 async def test_nudges_are_rare_and_need_a_user_turn_between(tmp_path):
-    cfg = test_config(tmp_path)
+    cfg = make_config(tmp_path)
     cfg.proactive.idle_nudge_s = 0.01
     cfg.proactive.nudge_cooldown_s = 0.0
     svc = make_services(tmp_path, cfg=cfg)
