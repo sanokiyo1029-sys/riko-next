@@ -134,7 +134,7 @@ _ATTRIB = re.compile(r"\b(he|she|they|someone|people|my (?:\w+ ){0,2}(?:friend|m
                      r"claims|believes|believe)\b", re.I)
 _SELF_FORBIDDEN = re.compile(r"\b(i will|i'll|i can|i could|remind|i did|i have done|i went|i saw|i ate|"
                              r"i was born|i live|model|runs on|running|ollama|ai companion|program)\b", re.I)
-_META = re.compile(r"(memory|memories|remember|forget|forgotten|remind|reminder|reminders)", re.I)
+_META = re.compile(r"\b(memory|memories|remember|forget|forgotten|remind|reminder|reminders)\b", re.I)
 _OPINION = re.compile(r"\b(thinks?|likes?|prefers?|believes?|finds?|feels?|enjoys?|dislikes?|loves?|hates?|"
                       r"would rather|favou?rite|opinion|considers?)\b", re.I)
 _RELATIVE_TIME = re.compile(r"\b(today|tonight|tomorrow|yesterday|this (?:morning|afternoon|evening|week|weekend)|"
