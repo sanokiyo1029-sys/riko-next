@@ -18,7 +18,9 @@ _ABBREVIATIONS = {
 _LATIN_END = re.compile(r"([.!?…]+)([\"'”’)\]]*)(\s+)")
 # CJK terminal punctuation needs no following whitespace.
 _CJK_END = re.compile(r"([。！？]+)([」』”’）]*)")
-_SOFT_BREAK = re.compile(r"([;:—–]|,(?!\d)|\s-\s)\s*")  # not inside numbers like 406,150.5
+# Only break after punctuation that is followed by whitespace: in a token stream the next character may not
+# have arrived yet, and "406,150.5" or "12:30" must never be split.
+_SOFT_BREAK = re.compile(r"([,;:](?=\s)|[—–]|\s-\s)\s*")
 
 
 def _visual_len(text: str) -> int:

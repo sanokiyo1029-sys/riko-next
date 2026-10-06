@@ -64,3 +64,13 @@ def test_numbers_are_not_split_and_invented_tags_are_hidden():
     assert strip_tags("Use list[0] or [Citation needed] here.") == "Use list[0] or [Citation needed] here."
     text, state = EmotionAnalyzer().analyze("[curious:0.8] Why is that?")
     assert text == "Why is that?" and state.emotion == "curious"
+
+
+def test_stream_boundary_inside_number_does_not_split():
+    from riko.core.chunker import SentenceChunker
+    c = SentenceChunker()
+    out = []
+    for tok in ["1234.5 times 987 divided by 3 equals 406", ",", "150", ".5", " at 12", ":", "30 today. "]:
+        out += c.feed(tok)
+    out += c.flush()
+    assert out == ["1234.5 times 987 divided by 3 equals 406,150.5 at 12:30 today."]
