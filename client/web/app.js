@@ -15,6 +15,7 @@ const jsonBody = (method, obj) => ({ method, headers: { 'Content-Type': 'applica
 let EMOTIONS = new Set();
 const TAG_RE = /\[\s*([A-Za-z]+)\s*(:\s*\d*\.?\d+)?\s*\]\s*/g;
 const stripTags = (s) => s.replace(TAG_RE, (m, name) => (EMOTIONS.has(name.toLowerCase()) ? '' : m))
+  .replace(/(^|[.!?]\s+)\[\s*[a-z]+\s*(:\s*\d*\.?\d+)?\s*\]\s*/g, '$1')   // invented tags like [hello]
   .replace(/<think>[\s\S]*?(<\/think>|$)/g, '');
 const LAYER_LABEL = { semantic: 'Fact', episodic: 'Event', relationship: 'About us', task: 'Goal', working: 'Right now' };
 const HINTS = {

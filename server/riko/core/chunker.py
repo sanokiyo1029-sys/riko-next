@@ -18,7 +18,7 @@ _ABBREVIATIONS = {
 _LATIN_END = re.compile(r"([.!?…]+)([\"'”’)\]]*)(\s+)")
 # CJK terminal punctuation needs no following whitespace.
 _CJK_END = re.compile(r"([。！？]+)([」』”’）]*)")
-_SOFT_BREAK = re.compile(r"([,;:—–]|\s-\s)\s*")
+_SOFT_BREAK = re.compile(r"([;:—–]|,(?!\d)|\s-\s)\s*")  # not inside numbers like 406,150.5
 
 
 def _visual_len(text: str) -> int:

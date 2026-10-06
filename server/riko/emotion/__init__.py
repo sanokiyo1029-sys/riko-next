@@ -80,9 +80,15 @@ def make_state(emotion: str, intensity: float) -> EmotionState:
     return EmotionState(emotion, round(intensity, 2), st.style, st.expression, round(speed, 3))
 
 
+# A lowercase one-word bracket at the start of a sentence is the model attempting an emotion tag it
+# invented ("[hello]", "[calculating]"); it is never meant to be read. Other brackets are content.
+_LEADING_TAG = re.compile(r"(^|(?<=[.!?])\s+)\[\s*[a-z]+\s*(?::\s*\d*\.?\d+)?\s*\]\s*")
+
+
 def strip_tags(text: str) -> str:
-    """Remove recognised emotion tags (unknown bracket text is left alone)."""
-    return _TAG.sub(lambda m: "" if m.group(1).lower() in EMOTIONS else m.group(0), text).strip()
+    """Remove recognised emotion tags anywhere, and invented tag-like words at sentence starts."""
+    text = _TAG.sub(lambda m: "" if m.group(1).lower() in EMOTIONS else m.group(0), text)
+    return _LEADING_TAG.sub(lambda m: m.group(1), text).strip()
 
 
 class EmotionAnalyzer:

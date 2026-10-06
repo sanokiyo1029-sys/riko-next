@@ -76,6 +76,8 @@ class TerminalSink:
             print(f"         ({ev['emotion']} {ev['intensity']})")
         elif t == "memory_created":
             print(f"         [remembered: {ev['content']}]")
+        elif t == "tool_finished":
+            print(f"         [tool: {ev.get('summary') or ev.get('tool')}]")
         elif t == "assistant_stopped" and ev.get("reason") not in ("completed",):
             if self.player:
                 self.player.flush()
@@ -135,6 +137,9 @@ async def _chat(cfg: RikoConfig, text_only: bool, ptt: bool, headphones: bool) -
                 recording = not recording
             elif line:
                 await session.submit_text(line)
+                if text_only:  # keyboard chat is turn-based: wait for the reply before reading on
+                    while session.turn_running:
+                        await asyncio.sleep(0.05)
             if session._turn_task:
                 await asyncio.sleep(0)
     finally:

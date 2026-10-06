@@ -115,7 +115,7 @@ def safe_eval(expr: str) -> float:
 class CalculatorTool(Tool):
     name = "calculator"
     description = ("Evaluate an arithmetic expression exactly, e.g. '1234.5 * 987 / 3' or 'sqrt(2) * pi'. "
-                   "Use it for any non-trivial arithmetic instead of computing in your head.")
+                   "Only when the user's message needs non-trivial arithmetic.")
     permission = "safe"
 
     class Args(Args):
@@ -266,8 +266,10 @@ class AddTaskTool(Tool):
 
     class Args(Args):
         title: str = Field(min_length=2, max_length=200)
-        due: Optional[str] = Field(None, max_length=40, description="local ISO datetime, e.g. 2026-10-07T09:00")
-        in_minutes: Optional[int] = Field(None, ge=1, le=60 * 24 * 365)
+        due: Optional[str] = Field(None, max_length=40,
+                                   description="only if the user asked for a reminder at a clock time; local ISO")
+        in_minutes: Optional[int] = Field(None, ge=1, le=60 * 24 * 365,
+                                          description="only if the user asked to be reminded after a delay")
 
     async def run(self, args: Any, ctx: ToolContext) -> Any:
         m = _memory(ctx)

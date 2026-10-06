@@ -19,7 +19,7 @@ if defined GPT_SOVITS_DIR if exist "%GPT_SOVITS_DIR%\api_v2.py" (
 .venv\Scripts\python -m riko serve --open %*
 goto :eof
 :nopython
-echo Python 3.10+ was not found. Install it from https://www.python.org/downloads/ (tick "Add to PATH").
+echo Python 3.11+ was not found. Install it from https://www.python.org/downloads/ (tick "Add to PATH").
 pause
 goto :eof
 :fail

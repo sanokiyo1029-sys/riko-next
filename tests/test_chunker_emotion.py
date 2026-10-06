@@ -51,3 +51,16 @@ def test_emotion_tags_and_fallback():
     assert st2.emotion == "angry"
     assert strip_tags("[happy] Hi [note] there") == "Hi [note] there"
     assert "smug" in a.instructions()
+
+
+def test_numbers_are_not_split_and_invented_tags_are_hidden():
+    from riko.core.chunker import SentenceChunker
+    from riko.emotion import EmotionAnalyzer, strip_tags
+    c = SentenceChunker()
+    out = c.feed("[calculating] 1234.5 times 987 divided by 3 equals 406,150.5 exactly. ") + c.flush()
+    assert out == ["[calculating] 1234.5 times 987 divided by 3 equals 406,150.5 exactly."]
+    assert strip_tags(out[0]) == "1234.5 times 987 divided by 3 equals 406,150.5 exactly."
+    assert strip_tags("[hello] Hi Sam! [waves] Bye.") == "Hi Sam! Bye."
+    assert strip_tags("Use list[0] or [Citation needed] here.") == "Use list[0] or [Citation needed] here."
+    text, state = EmotionAnalyzer().analyze("[curious:0.8] Why is that?")
+    assert text == "Why is that?" and state.emotion == "curious"
