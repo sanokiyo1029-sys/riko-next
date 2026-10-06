@@ -119,3 +119,10 @@ Retained in Riko Next:
 | LLM SDK | Replaced `openai`/`litellm` with `httpx` | Fewer dependencies, exact cancellation, one client covers all compatible servers |
 | Memory store | SQLite + numpy | Zero setup, one file, plenty fast; swappable via `VectorIndex` |
 | Not built | Tool/OS actions, screen capture, wake word, Discord, Live2D | Out of scope for a reliable core; see roadmap |
+
+## Update (0.2, 2026-10-06)
+
+Several items listed above as "not built" now exist: native tool calling (with permissions, no shell/OS
+control), image understanding through a separate vision model, proactive greetings/reminders, persistent mood
+and evidence-validated memory. See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) and
+[../RIKO_COMPARISON.md](../RIKO_COMPARISON.md). Wake word, Discord and Live2D remain unbuilt.
