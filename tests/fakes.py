@@ -135,3 +135,32 @@ def speech_audio(speech_s: float = 1.0, lead_s: float = 0.6, tail_s: float = 1.0
 def to_frames(x: np.ndarray, n: int = 512) -> list[bytes]:
     pcm = (np.clip(x, -1, 1) * 32767).astype("<i2")
     return [pcm[i:i + n].tobytes() for i in range(0, pcm.size, n)]
+
+
+class ScriptedLLM(LLMProvider):
+    """Plays back a list of steps, one per LLM request. Each step is a list of LLMEvents (or a callable
+    taking the messages and returning that list). Records every request it receives."""
+    name = "scripted"
+
+    def __init__(self, steps, delay: float = 0.0) -> None:
+        super().__init__("gpt-oss:20b")
+        self.steps, self.delay, self.calls, self.tools_seen = list(steps), delay, [], []
+
+    async def stream_events(self, messages, *, tools=None, temperature=None, max_tokens=None, json_schema=None):
+        from riko.llm import LLMEvent
+        self.calls.append([dict(m) for m in messages])
+        self.tools_seen.append(tools)
+        if "long-term memory" in messages[-1].get("content", ""):
+            yield LLMEvent("content", '{"memories": []}')
+            yield LLMEvent("done", finish_reason="stop")
+            return
+        step = self.steps.pop(0) if self.steps else [LLMEvent("content", "Okay."), LLMEvent("done")]
+        if callable(step):
+            step = step(messages)
+        for ev in step:
+            if self.delay:
+                await asyncio.sleep(self.delay)
+            yield ev
+
+    async def list_models(self):
+        return ["gpt-oss:20b"]

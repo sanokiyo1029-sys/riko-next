@@ -163,6 +163,7 @@ class _TurnState:
     spoken: list[str] = field(default_factory=list)       # sentences whose audio started (or were voiced)
     displayed: list[str] = field(default_factory=list)    # sentences shown to the user
     emotions: list[EmotionState] = field(default_factory=list)
+    seen_sentences: set[str] = field(default_factory=set)
     metrics: dict[str, Any] = field(default_factory=dict)
     usage: dict[str, Any] = field(default_factory=dict)
     tools: list[dict[str, Any]] = field(default_factory=list)
@@ -721,6 +722,8 @@ class ConversationSession:
                     await asyncio.sleep(0.3)
                     continue
                 raise
+            if tools is None:
+                calls = []  # tools weren't offered this round: never execute calls the model emits anyway
             fresh = [c for c in calls if (c.name, json.dumps(c.arguments, sort_keys=True)) not in seen_calls]
             if not fresh or (step > 0 and "".join(step_text).strip()):
                 # Nothing new to run, or the model already started answering after a tool result:
@@ -781,6 +784,12 @@ class ConversationSession:
             await self._emit(Ev.EMOTION_CHANGED, turn_id=st.turn_id, sentence_index=idx, **changed.to_dict())
         if not display:
             return
+        key = re.sub(r"\W+", "", display.lower())
+        if key and key in st.seen_sentences:
+            # the model repeated itself across a tool round ("Mia." ... tool ... "Mia."): show/say it once
+            st.metrics["repeated_sentences_dropped"] = st.metrics.get("repeated_sentences_dropped", 0) + 1
+            return
+        st.seen_sentences.add(key)
         st.displayed.append(display)
         st.metrics.setdefault("llm_first_deliverable_ms", st.ms())
         await self._emit(Ev.LLM_SENTENCE, turn_id=st.turn_id, index=idx, text=display)

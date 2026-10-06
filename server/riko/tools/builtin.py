@@ -258,8 +258,9 @@ def _parse_due(due: Optional[str], in_minutes: Optional[int]) -> Optional[float]
 
 class AddTaskTool(Tool):
     name = "add_task"
-    description = ("Add a task to the user's to-do list, optionally with a reminder. For relative times (\"in 30 "
-                   "minutes\") use in_minutes; use due only for a clock time (local ISO, e.g. 2026-10-07T09:00). "
+    description = ("Add a task to the user's to-do list, optionally with a reminder. Set a reminder only if the user "
+                   "asked for one. For relative times (\"in 30 minutes\") use in_minutes; use due only for a "
+                   "clock time (local ISO, e.g. 2026-10-07T09:00). "
                    "Reminders are spoken only while the Riko app is open; say so if it matters.")
     permission = "memory"
 

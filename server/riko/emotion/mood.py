@@ -91,7 +91,8 @@ class MoodModel:
                 dv *= 0.5 if cur.valence > -0.3 else 0.0
         if user and user.confidence > 0:
             if user.label in ("sad", "anxious"):
-                dv -= 0.05 * user.confidence                       # sympathetic, not mirroring despair
+                if cur.valence > -0.2:                             # sympathetic, never mirroring despair
+                    dv -= 0.05 * user.confidence
                 da += (0.3 - cur.arousal) * 0.3 * user.confidence
             elif user.label == "frustrated":
                 da += (0.3 - cur.arousal) * 0.3 * user.confidence  # calmer, never hostile
