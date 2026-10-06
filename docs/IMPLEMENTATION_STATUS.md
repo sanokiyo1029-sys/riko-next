@@ -125,7 +125,7 @@ Not available here:
 | Model routing (fast/smart/vision) | tested |
 | Vision through a separate model | tested, and verified live with `qwen3.6:latest` reading a code screenshot |
 | Memory UI: inspect, edit/correct, pin, forget, clear, export, disable | tested (API) and verified in the browser |
-| Voice pipeline: VAD, ASR, streamed TTS, barge-in, push-to-talk | tested with synthetic audio over the real WebSocket. Live-unverified with a real microphone, faster-whisper or GPT-SoVITS on this machine. |
+| Voice pipeline: VAD, ASR, streamed TTS, barge-in, push-to-talk | VAD, faster-whisper and barge-in were verified live with synthesized speech streamed like a microphone (see EVAL.md §3b). Real microphone input and GPT-SoVITS audio are still live-unverified. |
 | Cloud LLMs (OpenAI, OpenRouter, Groq, LM Studio, any OpenAI-compatible server) | tested against mock wire formats. No paid calls were made. |
 
 ## Unresolved defects and known limitations

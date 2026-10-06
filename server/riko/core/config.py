@@ -259,6 +259,9 @@ class MemoryConfig(_Strict):
     max_pending_jobs: int = Field(100, ge=1, le=10000)
     job_expiry_minutes: float = Field(60.0, gt=0)
     job_max_attempts: int = Field(3, ge=1, le=10)
+    # Background LLM work waits this long after any speech/reply. Cancelling a started request costs the
+    # next reply up to ~2 s on a local server (measured), so it is better not to start too eagerly.
+    background_idle_s: float = Field(3.0, ge=0.0, le=600.0)
     backfill_turns: int = Field(10, ge=0, le=200)      # unextracted turns re-queued after a restart
     familiarity: "FamiliarityConfig" = Field(default_factory=lambda: FamiliarityConfig())
 

@@ -94,7 +94,7 @@ class Services:
             self.tools = default_registry(cfg)
         if self.scheduler is None:
             self.scheduler = Scheduler(cfg.memory.max_pending_jobs, cfg.memory.job_expiry_minutes * 60,
-                                       cfg.memory.job_max_attempts)
+                                       cfg.memory.job_max_attempts, idle_s=cfg.memory.background_idle_s)
         if self.http is None and "network" in cfg.tools.permissions:
             self.http = httpx.AsyncClient(timeout=10.0, follow_redirects=True,
                                           headers={"User-Agent": "riko-next (local assistant)"})
@@ -245,7 +245,9 @@ class ConversationSession:
         return task
 
     def _busy_for_background(self) -> bool:
-        return self.assistant_active or self._ptt_active or self.segmenter.in_speech
+        # also busy while speech is being transcribed and shortly after anyone spoke: a reply is likely next
+        return (self.assistant_active or self._ptt_active or self.segmenter.in_speech or self._asr_lock.locked()
+                or time.monotonic() - self.last_activity < self.s.scheduler.idle_s)
 
     @property
     def turn_running(self) -> bool:
@@ -343,6 +345,7 @@ class ConversationSession:
             await self._set_state("listening")
 
     async def _on_speech_end(self, ev: SpeechEnd) -> None:
+        self.note_activity()
         await self._emit(Ev.USER_SPEECH_STOPPED, duration_s=round(ev.duration_s, 2))
         if self._barge_pending:  # too short to count as an interruption (cough, echo, "mm-hm")
             self._barge_pending = False

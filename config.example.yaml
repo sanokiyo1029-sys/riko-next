@@ -57,6 +57,7 @@ asr:
   compute_type: auto            # auto = float16 on GPU, int8 on CPU
   language: en                  # null = auto-detect (slower)
   beam_size: 1                  # 1 = lowest latency
+  initial_prompt: "Riko"        # biases recognition toward the name (and other words you put here)
 
 audio:
   input_mode: auto              # auto (voice detection) | ptt (push-to-talk)

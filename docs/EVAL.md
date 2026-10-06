@@ -115,6 +115,28 @@ These were run in the real browser UI against the real server and gpt-oss:20b:
 
 Separately, `RIKO_LIVE=1 pytest tests/test_live.py` passed.
 
+## 3b. Live voice input (synthetic speech, no microphone)
+
+faster-whisper 1.2.1 was installed (`pip install -e ".[asr]"`, `base.en` on CPU, int8). Windows' built-in
+speech engine generated "Hi Riko. What is twelve times thirteen?" as 16 kHz audio. The audio was streamed into
+the running server over the WebSocket in real time, in 32 ms frames, exactly like the browser microphone.
+
+The full path ran: Silero VAD, then faster-whisper, then gpt-oss, then tools/text.
+- The pause after "Hi Riko." split the speech into two utterances.
+- The second utterance **barged in** on the first reply.
+- Speech recognition finished in 282 ms and 304 ms after each utterance ended.
+- Answer "156.": first content 249 ms after the transcript.
+
+Two defects found and fixed:
+
+| Defect | Fix |
+|---|---|
+| A background memory job started during the 0.3 s of transcription; preempting it delayed the next reply's first token to **2.2 s** | background work now waits until no speech, transcription or reply has happened for `memory.background_idle_s` (3 s); retest: 109 ms |
+| "Riko" was heard as "Rika" | `asr.initial_prompt: "Riko"` |
+
+This is still not microphone audio, and it is not measured at the client. TTS audio (GPT-SoVITS) remains
+unmeasured.
+
 ## 4. Not evaluated (and why)
 
 - **Persona quality (blinded A/B, 60+ scenarios, held-out set, judge).** Not built. Only the deterministic
