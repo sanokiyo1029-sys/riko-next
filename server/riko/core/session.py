@@ -46,6 +46,8 @@ from .scheduler import Scheduler
 
 log = get_logger("session")
 _THINK_BLOCK = re.compile(r"<think>.*?(</think>|$)", re.S)
+_ACT = re.compile(r"\[\s*act\s*:\s*([a-z_]+)\s*\]\s*", re.I)
+_ACTIONS = {"wander", "hop", "nap", "follow", "inspect", "edge", "come"}
 USER_SOURCES = ("text", "voice")
 FALLBACKS = {
     "empty": "Sorry, I lost my train of thought there. Could you say that again?",
@@ -789,6 +791,10 @@ class ConversationSession:
         return _THINK_BLOCK.sub("", text)
 
     async def _dispatch(self, st: _TurnState, chunk: str, queue: "asyncio.Queue[Optional[_Sentence]]") -> None:
+        for m in _ACT.finditer(chunk):  # body actions for the avatar: never spoken, never shown
+            if m.group(1).lower() in _ACTIONS:
+                await self._emit(Ev.AVATAR_ACTION, turn_id=st.turn_id, action=m.group(1).lower())
+        chunk = _ACT.sub("", chunk)
         display, state = self.emotion.analyze(chunk)
         changed = self.emotion.update(state)
         if state:

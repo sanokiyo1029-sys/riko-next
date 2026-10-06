@@ -85,9 +85,13 @@ def make_state(emotion: str, intensity: float) -> EmotionState:
 _LEADING_TAG = re.compile(r"(^|(?<=[.!?])\s+)\[\s*[a-z]+\s*(?::\s*\d*\.?\d+)?\s*\]\s*")
 
 
+_ACT_TAG = re.compile(r"\[\s*act\s*:[^\]]*\]\s*", re.I)  # avatar body actions ([act:hop])
+
+
 def strip_tags(text: str) -> str:
     """Remove recognised emotion tags anywhere, and invented tag-like words at sentence starts."""
     text = _TAG.sub(lambda m: "" if m.group(1).lower() in EMOTIONS else m.group(0), text)
+    text = _ACT_TAG.sub("", text)
     return _LEADING_TAG.sub(lambda m: m.group(1), text).strip()
 
 

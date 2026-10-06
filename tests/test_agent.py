@@ -206,3 +206,16 @@ async def test_memory_off_mode_keeps_session_context_but_persists_nothing(tmp_pa
     await wait_for(lambda: len(sink.of("assistant_stopped")) == 2)
     assert any(m["content"] == "my name is Alex" for m in llm.calls[1])  # session-local history still works
     assert svc.memory.store.recent_messages("riko", 10) == [] and svc.memory.store.list("riko") == []
+
+
+async def test_body_action_tags_move_the_avatar_and_are_never_shown_or_spoken(tmp_path):
+    tts = FakeTTS()
+    llm = ScriptedLLM([[ev("content", "[happy] Yay, that's great news! [act:hop] Tell me more. [act:fly] "), ev("done")]])
+    svc = make_services(tmp_path, llm=llm, tts=tts)
+    _, sink = await run(svc)
+    assert [e["action"] for e in sink.of("avatar_action")] == ["hop"]  # unknown actions are ignored
+    assert sink.of("avatar_action")[0]["event"] == "avatar.action"
+    shown = " ".join(e["text"] for e in sink.of("llm_sentence")) + sink.of("llm_finished")[0]["text"]
+    assert "act:" not in shown and "act:" not in " ".join(tts.texts)
+    from riko.emotion import strip_tags
+    assert strip_tags("Hi! [act:hop] Bye.") == "Hi! Bye."

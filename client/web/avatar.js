@@ -111,7 +111,12 @@ async function createVRMAvatar(container, url) {
   const head = bone('head'), neck = bone('neck'), spine = bone('spine'), chest = bone('chest');
   const lUpper = bone('leftUpperArm'), rUpper = bone('rightUpperArm');
   const lLower = bone('leftLowerArm'), rLower = bone('rightLowerArm');
+  // Measure her in the relaxed pose (arms down), not the T-pose: outstretched arms make her ~1.4 m wide,
+  // which would zoom a narrow frame far out.
+  if (lUpper) lUpper.rotation.z = -1.15;
+  if (rUpper) rUpper.rotation.z = 1.15;
   vrm.update(0);
+  vrm.scene.updateMatrixWorld(true);
   // Full-body framing from the model's real bounds (hair and shoes included).
   const box = new THREE.Box3().setFromObject(vrm.scene);
   const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
@@ -120,7 +125,7 @@ async function createVRMAvatar(container, url) {
   const controls = new OrbitControls(camera, renderer.domElement);
   Object.assign(controls, { enableDamping: true, dampingFactor: 0.12, screenSpacePanning: true,
     minDistance: 0.3, maxDistance: Math.max(6, size.y * 4), maxPolarAngle: Math.PI * 0.62, zoomSpeed: 0.8 });
-  const VIEW_KEY = 'riko.avatarView';
+  const VIEW_KEY = 'riko.avatarView.v2';   // v2: the body now lives in a small, moving box
   let userMoved = false;
   const fit = () => {
     const vfov = THREE.MathUtils.degToRad(camera.fov);
@@ -182,7 +187,8 @@ async function createVRMAvatar(container, url) {
       }
     },
     setMood() {},
-    update(dt, { mouth = 0, speaking = false, listening = false, thinking = false, arousal = 0.45 }) {
+    update(dt, { mouth = 0, speaking = false, listening = false, thinking = false, arousal = 0.45, facing = 1,
+                 walking = false }) {
       t += dt;
       const amp = reducedMotion() ? 0 : 0.6 + arousal;
       // arms down from T-pose, gentle breathing and sway
@@ -211,6 +217,8 @@ async function createVRMAvatar(container, url) {
       em?.setValue('aa', cur.aa);
       em?.setValue('oh', cur.oh);
       em?.setValue('blink', cur.happy > 0.6 ? 0 : blink);
+      // turn the body toward where she walks (instead of mirroring the canvas), face the viewer when still
+      vrm.scene.rotation.y = lerp(vrm.scene.rotation.y, walking ? facing * 0.9 : 0, Math.min(1, dt * 5));
       vrm.update(dt);
       controls.update();
       renderer.render(scene, camera);

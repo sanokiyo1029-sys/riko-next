@@ -70,6 +70,11 @@ or cloud model works through the same configuration.
   - Quiet hours, and an off / minimal / normal level.
 - **Optional avatar.** VRM or a 2D face: lip sync, blinking, expressions, a glance while thinking, idle motion
   driven by mood, reduced-motion support. Everything works without it.
+  - **She moves on her own** (`client/web/behavior.js`): needs (energy, boredom, curiosity, social) drive her
+    to wander, hop, nap, follow your cursor, or peek at the edge. She comes to you when you talk, stays put
+    while speaking, and paces while thinking.
+  - The model can move her too with silent tags (`[act:hop]`, `[act:come]`, …). Click her to poke her.
+  - Drag to turn her, scroll to zoom, double-click to reset. Tune her personality traits in `app.js`.
 - **Local-first and private.**
   - One SQLite file holds your data.
   - Secrets live only in `.env`.

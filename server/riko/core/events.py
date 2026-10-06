@@ -46,6 +46,7 @@ class Ev:
     ASSISTANT_UNDUCK = "assistant_unduck"
     EMOTION_CHANGED = "emotion_changed"
     MOOD = "mood"
+    AVATAR_ACTION = "avatar_action"
     TOOL_STARTED = "tool_started"
     TOOL_FINISHED = "tool_finished"
     IMAGE_ANALYZED = "image_analyzed"
@@ -66,7 +67,7 @@ DOTTED = {
     Ev.TTS_STARTED: "tts.started", Ev.TTS_FINISHED: "tts.finished", Ev.TTS_SPEAK: "tts.speak_in_browser",
     Ev.ASSISTANT_SPEAKING: "assistant.speaking", Ev.ASSISTANT_STOPPED: "assistant.finished",
     Ev.ASSISTANT_DUCK: "assistant.duck", Ev.ASSISTANT_UNDUCK: "assistant.unduck",
-    Ev.EMOTION_CHANGED: "assistant.emotion", Ev.MOOD: "assistant.mood",
+    Ev.EMOTION_CHANGED: "assistant.emotion", Ev.MOOD: "assistant.mood", Ev.AVATAR_ACTION: "avatar.action",
     Ev.TOOL_STARTED: "tool.started", Ev.TOOL_FINISHED: "tool.finished", Ev.IMAGE_ANALYZED: "image.analyzed",
     Ev.MEMORY_CREATED: "memory.created", Ev.MEMORY_RETRIEVED: "memory.retrieved",
     Ev.SETTINGS: "settings.changed", Ev.METRICS: "metrics", Ev.ERROR: "error", Ev.PONG: "pong",

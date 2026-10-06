@@ -1,5 +1,6 @@
 import { AudioEngine } from './audio.js';
 import { createAvatar } from './avatar.js';
+import { createBehavior } from './behavior.js';
 
 const $ = (id) => document.getElementById(id);
 const token = new URLSearchParams(location.search).get('token');
@@ -15,6 +16,7 @@ const jsonBody = (method, obj) => ({ method, headers: { 'Content-Type': 'applica
 let EMOTIONS = new Set();
 const TAG_RE = /\[\s*([A-Za-z]+)\s*(:\s*\d*\.?\d+)?\s*\]\s*/g;
 const stripTags = (s) => s.replace(TAG_RE, (m, name) => (EMOTIONS.has(name.toLowerCase()) ? '' : m))
+  .replace(/\[\s*act\s*:[^\]]*\]\s*/gi, '')                                   // body actions: never shown
   .replace(/(^|[.!?]\s+)\[\s*[a-z]+\s*(:\s*\d*\.?\d+)?\s*\]\s*/g, '$1')   // invented tags like [hello]
   .replace(/<think>[\s\S]*?(<\/think>|$)/g, '');
 const LAYER_LABEL = { semantic: 'Fact', episodic: 'Event', relationship: 'About us', task: 'Goal', working: 'Right now' };
@@ -161,6 +163,9 @@ function onEvent(ev) {
       break;
     case 'emotion_changed':
       setEmotion(ev);
+      break;
+    case 'avatar_action':
+      state.behavior?.perform(ev.action);
       break;
     case 'mood':
       setMood(ev);
@@ -604,7 +609,11 @@ function frame(now) {
   if (speaker !== state.speaker) { state.speaker = speaker; document.body.dataset.speaker = speaker; }
   const level = speaker === 'riko' ? lv.riko : speaker === 'you' ? lv.you : 0;
   $('halo').style.setProperty('--level', level.toFixed(3));
+  state.behavior?.update(dt, {
+    convo: document.body.dataset.state, userSpeaking: speaker === 'you', rikoSpeaking: rikoTalking,
+  });
   state.avatar?.update(dt, {
+    facing: state.behavior?.facing ?? 1, walking: (state.behavior?.speed ?? 0) > 10,
     mouth: lv.riko, speaking: rikoTalking, listening: speaker === 'you',
     thinking: document.body.dataset.state === 'thinking', arousal: state.mood?.arousal ?? 0.45,
   });
@@ -627,6 +636,14 @@ function frame(now) {
       + `choose Export as VRM, and save it as client/web/${av.vrm_url}, then reload this page.`, 'info');
   }
   state.avatar = await createAvatar($('avatar'), { vrmUrl: av.vrm_url, enabled: av.enabled });
+  if (state.avatar?.kind && state.avatar.kind !== 'none') {
+    $('avatar').classList.add(state.avatar.kind);   // '2d' | 'vrm' (sets the body's box shape)
+    state.behavior = createBehavior($('stage'), $('avatar'), {
+      traits: { energy: 0.7, curiosity: 0.8, clinginess: 0.4 },   // tune her personality here
+      mirror: state.avatar.kind !== 'vrm',                         // the 3D model turns instead of flipping
+      onPoke: () => setEmotion({ emotion: 'surprised', expression: 'surprised', intensity: 0.8 }),
+    });
+  }
   if (state.mood) state.avatar?.setMood?.(state.mood);
   requestAnimationFrame(frame);
 })();

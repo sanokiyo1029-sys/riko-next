@@ -255,3 +255,25 @@ details.dev summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
 details.dev pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: ui-monospace, Consolas, monospace; font-size: .75rem;
   background: var(--ink); padding: 10px; border-radius: var(--radius-sm); max-height: 240px; overflow: auto; }
 .settings > label > select { width: 100%; }
+
+/* ------------------------------------------------------------ movable body (behavior.js) */
+.stage { --rx: 50%; --ry: 46%; }
+.avatar {
+  inset: auto; left: 0; top: 0;
+  width: clamp(170px, 28vmin, 300px); height: auto; aspect-ratio: 1;
+  will-change: transform; cursor: pointer; z-index: 1;
+}
+.avatar.vrm { width: clamp(150px, 24vmin, 280px); aspect-ratio: 9 / 16; }   /* full-body 3D model is tall */
+.avatar svg.face { width: 100%; }
+.avatar.sleeping { filter: saturate(.7) brightness(.85); }
+.avatar.sleeping::after {
+  content: "z z z"; position: absolute; top: -6%; right: 4%;
+  font-weight: 800; color: var(--muted); animation: zzz 2.4s ease-in-out infinite;
+}
+@keyframes zzz { 50% { translate: 6px -8px; opacity: .5; } }
+/* the halo follows her instead of staying in the middle */
+.halo { left: var(--rx); top: var(--ry); width: clamp(230px, 38vmin, 420px); }
+@media (prefers-reduced-motion: reduce) { .avatar.sleeping::after { animation: none; } }
+/* the canvas must never size its box (canvas height -> box height -> canvas height feedback loop) */
+.avatar { min-height: 0; overflow: visible; }
+.avatar canvas { position: absolute; inset: 0; }
