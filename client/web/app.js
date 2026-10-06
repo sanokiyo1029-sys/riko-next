@@ -20,7 +20,7 @@ const stripTags = (s) => s.replace(TAG_RE, (m, name) => (EMOTIONS.has(name.toLow
 const LAYER_LABEL = { semantic: 'Fact', episodic: 'Event', relationship: 'About us', task: 'Goal', working: 'Right now' };
 const HINTS = {
   offline: 'Reconnecting to Riko…',
-  listening: 'Just talk. Hold Space to talk over her, Esc to stop her.',
+  listening: 'Just talk. Hold Space to talk over her, Esc to stop her. Drag her to turn, scroll to zoom, double-click to reset.',
   transcribing: 'Catching that…',
   thinking: 'Thinking…',
   speaking: 'Start talking to interrupt.',

@@ -83,13 +83,14 @@ function createFaceAvatar(container) {
 async function createVRMAvatar(container, url) {
   const THREE = await import('three');
   const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  const { OrbitControls } = await import('three/addons/controls/OrbitControls.js');
   const { VRMLoaderPlugin, VRMUtils } = await import('@pixiv/three-vrm');
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 20);
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 50);
   const key = new THREE.DirectionalLight(0xffffff, 2.2); key.position.set(1, 1.6, 1.4); scene.add(key);
   scene.add(new THREE.AmbientLight(0xd9ccff, 1.1));
 
@@ -111,16 +112,60 @@ async function createVRMAvatar(container, url) {
   const lUpper = bone('leftUpperArm'), rUpper = bone('rightUpperArm');
   const lLower = bone('leftLowerArm'), rLower = bone('rightLowerArm');
   vrm.update(0);
-  const hp = new THREE.Vector3(); head?.getWorldPosition(hp);
-  const y = hp.y || 1.4;
-  camera.position.set(0, y - 0.02, 1.15);
-  camera.lookAt(0, y - 0.1, 0);
+  // Full-body framing from the model's real bounds (hair and shoes included).
+  const box = new THREE.Box3().setFromObject(vrm.scene);
+  const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
+  // Mouse / touch camera: drag = turn around her, wheel / pinch = zoom, right-drag / two fingers = move her
+  // around the stage, double-click = back to the full-body view. The view is remembered per browser.
+  const controls = new OrbitControls(camera, renderer.domElement);
+  Object.assign(controls, { enableDamping: true, dampingFactor: 0.12, screenSpacePanning: true,
+    minDistance: 0.3, maxDistance: Math.max(6, size.y * 4), maxPolarAngle: Math.PI * 0.62, zoomSpeed: 0.8 });
+  const VIEW_KEY = 'riko.avatarView';
+  let userMoved = false;
+  const fit = () => {
+    const vfov = THREE.MathUtils.degToRad(camera.fov);
+    const hfov = 2 * Math.atan(Math.tan(vfov / 2) * camera.aspect);
+    const margin = 1.15;   // breathing room above the hair and below the feet
+    const dist = Math.max((size.y * margin) / 2 / Math.tan(vfov / 2), (size.x * margin) / 2 / Math.tan(hfov / 2));
+    // aim slightly below the middle so she sits above the on-stage buttons
+    const target = new THREE.Vector3(center.x, center.y - size.y * 0.06, center.z);
+    controls.target.copy(target);
+    camera.position.set(target.x, target.y + size.y * 0.04, target.z + dist + size.z / 2);
+    controls.update();
+  };
+  const saveView = () => {
+    try {
+      localStorage.setItem(VIEW_KEY, JSON.stringify({ p: camera.position.toArray(), t: controls.target.toArray() }));
+    } catch { /* storage unavailable: view just isn't remembered */ }
+  };
+  const restoreView = () => {
+    try {
+      const v = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null');
+      if (!v) return false;
+      camera.position.fromArray(v.p); controls.target.fromArray(v.t); controls.update();
+      return true;
+    } catch { return false; }
+  };
+  controls.addEventListener('start', () => { userMoved = true; renderer.domElement.style.cursor = 'grabbing'; });
+  controls.addEventListener('end', () => { saveView(); renderer.domElement.style.cursor = 'grab'; });
+  renderer.domElement.style.cursor = 'grab';
+  renderer.domElement.style.touchAction = 'none';
+  renderer.domElement.title = 'Drag to turn her · scroll to zoom · right-drag to move · double-click to reset';
+  const onReset = () => {
+    userMoved = false;
+    try { localStorage.removeItem(VIEW_KEY); } catch { /* ignore */ }
+    fit();
+  };
+  renderer.domElement.addEventListener('dblclick', onReset);
 
   const resize = () => {
     const w = container.clientWidth || 1, h = container.clientHeight || 1;
     renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+    if (!userMoved) fit();   // keep her fully in view when the window changes, unless you moved the camera
   };
-  const ro = new ResizeObserver(resize); ro.observe(container); resize();
+  const ro = new ResizeObserver(resize); ro.observe(container);
+  resize();
+  if (restoreView()) userMoved = true;
 
   const em = vrm.expressionManager;
   const EXPR = ['happy', 'angry', 'sad', 'relaxed', 'surprised'];
@@ -167,8 +212,13 @@ async function createVRMAvatar(container, url) {
       em?.setValue('oh', cur.oh);
       em?.setValue('blink', cur.happy > 0.6 ? 0 : blink);
       vrm.update(dt);
+      controls.update();
       renderer.render(scene, camera);
     },
-    dispose() { ro.disconnect(); renderer.dispose(); VRMUtils.deepDispose(vrm.scene); container.innerHTML = ''; },
+    resetView: onReset,
+    dispose() {
+      ro.disconnect(); controls.dispose(); renderer.domElement.removeEventListener('dblclick', onReset);
+      renderer.dispose(); VRMUtils.deepDispose(vrm.scene); container.innerHTML = '';
+    },
   };
 }

@@ -61,6 +61,8 @@ button, input, select { font: inherit; color: inherit; }
 }
 .avatar { position: absolute; inset: 0; display: grid; place-items: center; }
 .avatar canvas { width: 100% !important; height: 100% !important; display: block; }
+.avatar canvas:active { cursor: grabbing; }
+.emotion, .activity, .hint, .subtitle { pointer-events: none; }
 .avatar svg.face { width: min(46vmin, 380px); height: auto; }
 
 /* The one bold element: a halo that breathes with whoever is speaking. */
