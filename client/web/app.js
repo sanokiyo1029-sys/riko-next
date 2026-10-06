@@ -176,7 +176,8 @@ function onEvent(ev) {
       showMetrics(ev);
       break;
     case 'error':
-      note(errorText(ev), 'error');
+      if (ev.level === 'info') note(ev.message, 'info');
+      else note(errorText(ev), 'error');
       break;
   }
 }

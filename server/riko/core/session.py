@@ -821,10 +821,27 @@ class ConversationSession:
             await self._emit(Ev.ASSISTANT_SPEAKING, turn_id=st.turn_id)
             await self._set_state("speaking")
 
+    async def _tts_down(self, err: Optional[str] = None) -> None:
+        """Mark the TTS server down for 30 s (shared by all turns/tabs) and tell the user once, calmly."""
+        self.s.status["tts_down_until"] = time.monotonic() + 30.0
+        if self.s.status.get("tts_down_notified"):
+            return
+        self.s.status["tts_down_notified"] = True
+        browser = self.s.config.tts.fallback == "browser"
+        log.warning("TTS server unreachable; using fallback", extra={"fallback": self.s.config.tts.fallback,
+                                                                      "error": (err or "")[:200]})
+        await self._emit(Ev.ERROR, component="tts", level="info", recoverable=True,
+                         message=("Riko's own voice (GPT-SoVITS) isn't running, so she's using your browser's voice "
+                                  "for now. She switches back automatically once it starts."
+                                  if browser else "Riko's voice server isn't running; replies are text only."))
+
     async def _tts_worker(self, st: _TurnState, queue: "asyncio.Queue[Optional[_Sentence]]") -> None:
         tts = self.s.tts
-        # A dead TTS server is skipped for 30 s across turns (reported once), then retried.
+        # A dead TTS server is skipped for 30 s across turns, then retried; meanwhile the fallback voice speaks.
         tts_down = self.s.status.get("tts_down_until", 0.0) > time.monotonic()
+        browser_fallback = self.s.config.tts.fallback == "browser"
+        if tts_down and not self.s.status.get("tts_down_notified"):
+            await self._tts_down()  # detected at startup: still tell the user once
         mood = self._mood()
         mood_speed = MoodModel.speed_factor(mood) if mood else 1.0
         while True:
@@ -833,10 +850,10 @@ class ConversationSession:
                 return
             if job.speech and st.turn_id != self.turn_id:
                 return  # stale turn: never revive playback (I02)
-            if not job.speech or self.muted or tts.name == "none" or tts_down:
+            if not job.speech or self.muted or tts.name == "none" or (tts_down and not browser_fallback):
                 st.spoken.append(job.raw)
                 continue
-            if not tts.produces_audio:  # browser speechSynthesis fallback
+            if not tts.produces_audio or tts_down:  # browser speechSynthesis (configured, or as fallback)
                 st.spoken.append(job.raw)
                 await self._announce_speaking(st)
                 await self._emit(Ev.TTS_SPEAK, turn_id=st.turn_id, index=job.index, text=job.speech,
@@ -854,13 +871,24 @@ class ConversationSession:
                         await self._announce_speaking(st)
                     await self.sink.send_audio(st.turn_id, job.index, chunk.sample_rate, chunk.pcm)
             except TTSError as e:
-                log.error("TTS failed", extra={"error": str(e), "sentence": job.index})
-                await self._emit(Ev.ERROR, component="tts", message=str(e), recoverable=True, turn_id=st.turn_id)
-                tts_down = e.unavailable  # don't hammer a dead server for every sentence
-                if e.unavailable:
-                    self.s.status["tts_down_until"] = time.monotonic() + 30.0
+                if e.unavailable:  # server not running: fall back for this and later sentences, no scary error
+                    tts_down = True
+                    await self._tts_down(str(e))
+                    if first and browser_fallback:
+                        st.spoken.append(job.raw)
+                        await self._announce_speaking(st)
+                        await self._emit(Ev.TTS_SPEAK, turn_id=st.turn_id, index=job.index, text=job.speech,
+                                         emotion=job.emotion.emotion,
+                                         speed=round(job.emotion.speed_factor * mood_speed, 3))
+                        first = False
+                else:
+                    log.error("TTS failed", extra={"error": str(e), "sentence": job.index})
+                    await self._emit(Ev.ERROR, component="tts", message=str(e), recoverable=True, turn_id=st.turn_id)
                 if first:
                     st.spoken.append(job.raw)  # the text was still shown to the user
+            else:
+                if not first and self.s.status.pop("tts_down_notified", None):
+                    log.info("TTS server is back")
             await self._emit(Ev.TTS_FINISHED, turn_id=st.turn_id, index=job.index)
 
     # ---------------------------------------------------------------- after a user turn

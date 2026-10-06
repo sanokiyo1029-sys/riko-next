@@ -167,3 +167,22 @@ async def test_new_text_cancels_running_turn_and_settings(tmp_path):
     assert svc.personality.preset == "sarcastic" and svc.llm.model == "other-model" and s.muted
     await s.apply_settings(preset="does-not-exist")
     assert sink.of("error")[-1]["component"] == "settings"
+
+
+async def test_dead_tts_server_falls_back_to_browser_voice_quietly(tmp_path):
+    svc = make_services(tmp_path, tts=BrokenTTS())
+    sink = RecordingSink()
+    s = ConversationSession(svc, sink)
+    await s.submit_text("hi")
+    await wait_for(lambda: sink.of("assistant_stopped"))
+    assert len(sink.of("tts_speak")) == 3                       # every sentence is still spoken
+    errs = sink.of("error")
+    assert len(errs) == 1 and errs[0]["level"] == "info" and "browser's voice" in errs[0]["message"]
+    await s.submit_text("again")                                 # later turns: no repeat notice, still spoken
+    await wait_for(lambda: len(sink.of("assistant_stopped")) == 2)
+    assert len(sink.of("error")) == 1 and len(sink.of("tts_speak")) == 6
+    svc.config.tts.fallback = "none"
+    svc.status.clear()
+    await s.submit_text("third")
+    await wait_for(lambda: len(sink.of("assistant_stopped")) == 3)
+    assert len(sink.of("tts_speak")) == 6                        # fallback "none" = text only

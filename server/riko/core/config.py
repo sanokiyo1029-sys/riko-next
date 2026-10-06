@@ -206,6 +206,9 @@ class TTSConfig(_Strict):
     # Spoken-length bound for replies to *voice* input. Longer text is still shown; only speech stops.
     max_spoken_sentences: int = Field(3, ge=0)       # 0 = unlimited
     max_spoken_words: int = Field(90, ge=0)          # 0 = unlimited
+    # When the TTS server is unreachable: speak with the browser's built-in voice ("browser") or stay silent
+    # ("none"). The server is retried every 30 s and takes over again as soon as it answers.
+    fallback: Literal["browser", "none"] = "browser"
     voices: dict[str, VoiceConfig] = Field(default_factory=lambda: {"riko": VoiceConfig()})
     strip_actions: bool = True
     gpt_sovits: GPTSoVITSConfig = Field(default_factory=GPTSoVITSConfig)

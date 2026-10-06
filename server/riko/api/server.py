@@ -103,6 +103,16 @@ def create_app(cfg: RikoConfig, services: Optional[Services] = None, *, warmup: 
                     svc.status["asr"] = {"state": "error", "error": str(e)[:200]}
                     log.error("ASR warm-up failed - voice input will not work until fixed", extra={"error": str(e)})
             tasks.append(asyncio.create_task(_warm_asr()))
+
+            async def _probe_tts() -> None:
+                if svc.tts.produces_audio:
+                    ok, detail = await svc.tts.health()
+                    svc.status["tts"] = {"state": "ready" if ok else "unreachable", "detail": detail}
+                    if not ok:
+                        svc.status["tts_down_until"] = time.monotonic() + 30.0
+                        log.warning("TTS server unreachable at startup; using fallback voice until it answers",
+                                    extra={"fallback": cfg.tts.fallback})
+            tasks.append(asyncio.create_task(_probe_tts()))
             tasks.append(asyncio.create_task(_warm_llm(svc)))
         if svc.memory:
             mem = svc.memory
