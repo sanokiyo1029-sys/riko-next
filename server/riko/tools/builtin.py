@@ -35,7 +35,8 @@ def _memory(ctx: ToolContext) -> Any:
 # ------------------------------------------------------------------ time
 class DateTimeTool(Tool):
     name = "get_datetime"
-    description = "Get the current date and time, optionally in another IANA timezone such as Asia/Tokyo."
+    description = ("Get the current date and time in another IANA timezone such as Asia/Tokyo. The user's local "
+                   "date and time are already in your context, so don't call this for those.")
     permission = "safe"
 
     class Args(Args):
@@ -155,7 +156,7 @@ class SearchMemoryTool(Tool):
 
 class RememberTool(Tool):
     name = "remember"
-    description = ("Save something the user explicitly asked you to remember, as a short third-person claim "
+    description = ("Only when the user explicitly asks you to remember something: save it as a short third-person claim "
                    "such as \"User's sister is called Mia\". Don't use it for small talk.")
     permission = "memory"
 
@@ -177,7 +178,7 @@ class RememberTool(Tool):
 
 class ForgetMemoryTool(Tool):
     name = "forget_memory"
-    description = ("Forget something when the user asks. Pass memory_id (from search_memory) to delete a stored "
+    description = ("Only when the user explicitly asks you to forget something about them. Pass memory_id (from search_memory) to delete a stored "
                    "memory, and/or claim (a short third-person statement like \"User lives in Pune\") so it is "
                    "also never saved later from earlier conversation. Tell the user what you forgot.")
     permission = "memory"

@@ -16,6 +16,7 @@ leaves the provider layer (I01); stale turns can never emit audio (I02).
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import time
 import uuid
@@ -673,6 +674,7 @@ class ConversationSession:
         overall = st.t0 + cfg.llm.overall_timeout_s
         first_content = st.t0 + st.metrics.get("context_ms", 0) / 1000 + cfg.llm.first_content_timeout_s
         step = retries = 0
+        seen_calls: set[tuple[str, str]] = set()
         while step <= cfg.tools.max_steps:
             llm = self.s.router.get("fast" if step == 0 else "smart") or self.s.llm
             tools = self.s.tools.schemas(tool_ctx) if use_tools and step < cfg.tools.max_steps else None
@@ -719,8 +721,15 @@ class ConversationSession:
                     await asyncio.sleep(0.3)
                     continue
                 raise
-            if not calls:
+            fresh = [c for c in calls if (c.name, json.dumps(c.arguments, sort_keys=True)) not in seen_calls]
+            if not fresh or (step > 0 and "".join(step_text).strip()):
+                # Nothing new to run, or the model already started answering after a tool result:
+                # running more tools here only duplicates the answer. Finish with what was said.
+                if calls and not fresh:
+                    st.metrics["duplicate_tool_calls"] = st.metrics.get("duplicate_tool_calls", 0) + len(calls)
                 break
+            calls = fresh
+            seen_calls.update((c.name, json.dumps(c.arguments, sort_keys=True)) for c in calls)
             for chunk in chunker.feed(think.flush()) + chunker.flush():  # speak "let me check" now
                 await self._dispatch(st, chunk, queue)
             messages.append({"role": "assistant", "content": "".join(step_text),

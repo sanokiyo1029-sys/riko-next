@@ -4,7 +4,9 @@
     riko chat             talk in the terminal (local mic/speakers), like the original main_chat.py
     riko chat --text      keyboard-only chat (no audio devices needed)
     riko check            diagnose configuration, LLM, TTS, ASR, audio devices, memory
-    riko memory list|stats|forget ID|maintain
+    riko probe            record what the configured model really supports (data/eval/...)
+    riko eval smoke       run the synthetic smoke evaluation (data/eval/...)
+    riko memory list|stats|forget ID|maintain|reindex|self|relationship|export|clear|backup|restore
 """
 from __future__ import annotations
 
@@ -162,64 +164,100 @@ def cmd_chat(args: argparse.Namespace) -> None:
 
 # ------------------------------------------------------------------ check
 async def _check(cfg: RikoConfig, skip_asr: bool) -> int:
+    """Distinguishes errors (FAIL), warnings (warn), unknowns (??) and disabled features (off)."""
     from .core.session import Services
 
     failures = 0
 
-    def report(ok: bool, label: str, detail: str) -> None:
+    def report(level: str, label: str, detail: str) -> None:
         nonlocal failures
-        failures += 0 if ok else 1
-        print(f"  [{'ok' if ok else 'FAIL'}] {label:<14} {detail}")
+        failures += level == "FAIL"
+        print(f"  [{level:<4}] {label:<14} {detail}")
 
     print(f"\nRiko Next {__version__} diagnostics (config root: {cfg.root})\n")
     try:
         svc = Services.from_config(cfg)
     except Exception as e:  # noqa: BLE001
-        report(False, "startup", str(e))
+        report("FAIL", "startup", str(e))
         return 1
-    report(True, "config", f"llm={cfg.llm.provider}:{cfg.llm.model} asr={cfg.asr.provider} tts={cfg.tts.provider}")
-    report(True, "personality", f"{svc.personality.current.name} presets={','.join(svc.personality.presets())}")
+    report("ok", "config", f"llm={cfg.llm.provider}:{cfg.llm.model} asr={cfg.asr.provider} tts={cfg.tts.provider}")
+    report("ok", "personality", f"{svc.personality.current.name} presets={','.join(svc.personality.presets())}")
     ok, msg = await svc.llm.health()
-    report(ok, "llm", msg)
+    report("ok" if ok else "FAIL", "llm", msg)
     if ok:
+        caps = await svc.llm.capabilities()
+        levels = caps.get("think_levels")
+        eff = cfg.llm.reasoning_effort
+        if eff and levels and eff not in levels and eff != "off":
+            report("warn", "reasoning", f"effort '{eff}' not in model's levels {levels}; not sent")
+        else:
+            report("ok" if caps.get("thinking") is not None else "??", "reasoning",
+                   f"thinking={caps.get('thinking')} levels={levels} effort={eff}")
+        report("ok" if caps.get("tools") else "??" if caps.get("tools") is None else "warn", "tool calls",
+               "model advertises tools" if caps.get("tools") else
+               "unknown for this provider (run riko probe)" if caps.get("tools") is None else
+               "model does not advertise tool support; set tools.enabled: false")
+        if caps.get("context_length") and caps["context_length"] < cfg.llm.num_ctx:
+            report("warn", "context", f"num_ctx {cfg.llm.num_ctx} > model maximum {caps['context_length']}")
         try:
-            reply = await asyncio.wait_for(svc.llm.complete([{"role": "user", "content": "Say hi in three words."}],
-                                                            max_tokens=20), 60)
-            report(bool(reply.strip()), "llm stream", repr(reply.strip()[:60]))
+            reply = await asyncio.wait_for(svc.llm.complete([{"role": "user", "content": "Say hi in three words."}]), 120)
+            report("ok" if reply.strip() else "FAIL", "llm stream",
+                   repr(reply.strip()[:60]) if reply.strip() else "empty answer (raise llm.max_tokens?)")
         except Exception as e:  # noqa: BLE001
-            report(False, "llm stream", str(e))
+            report("FAIL", "llm stream", str(e))
+        if hasattr(svc.llm, "running"):
+            loaded = await svc.llm.running()  # type: ignore[attr-defined]
+            report("ok" if loaded else "??", "residency",
+                   ", ".join(f"{m.get('name')} vram={round((m.get('size_vram') or 0) / 2**30, 1)}GB "
+                             f"ctx={m.get('context_length')}" for m in loaded) or "no model loaded right now")
+    vision = cfg.model_for("vision")
+    if vision is None:
+        report("off", "vision", "models.vision not set: images are not understood")
+    else:
+        vp = svc.router.get("vision")
+        vok, vmsg = await vp.health()
+        vcaps = await vp.capabilities() if vok else {}
+        report("ok" if vok and vcaps.get("vision") is not False else "FAIL" if not vok else "warn", "vision",
+               f"{vision.model}: {vmsg}" + (" (model does not advertise vision)" if vcaps.get("vision") is False else ""))
+    report("ok" if cfg.tools.enabled else "off", "tools",
+           f"{len(svc.tools.active(__import__('riko.tools', fromlist=['ToolContext']).ToolContext(cfg, svc.memory)))} "
+           f"active, permissions={cfg.tools.permissions}" if cfg.tools.enabled else "tools.enabled: false")
     if svc.tts.produces_audio:
         ok, msg = await svc.tts.health()
-        report(ok, "tts", msg)
+        report("ok" if ok else "warn", "tts", msg + ("" if ok else " (replies continue as text)"))
         voice = cfg.tts.voices[cfg.tts.voice]
         if cfg.tts.provider == "gpt_sovits" and voice.ref_audio:
             p = cfg.resolve_path(voice.ref_audio)
-            report(p.is_file(), "ref audio", str(p))
+            report("ok" if p.is_file() else "FAIL", "ref audio", str(p))
     else:
-        report(True, "tts", f"{cfg.tts.provider} (no server audio)")
+        report("off" if cfg.tts.provider == "none" else "ok", "tts", f"{cfg.tts.provider} (no server audio)")
     if not skip_asr:
         try:
             await svc.asr.warmup()
-            report(True, "asr", f"{cfg.asr.provider} {getattr(svc.asr, 'device', '') or ''}".strip())
+            report("ok", "asr", f"{cfg.asr.provider} {getattr(svc.asr, 'device', '') or ''}".strip())
         except Exception as e:  # noqa: BLE001
-            report(False, "asr", str(e))
+            report("warn", "asr", f"{e} (text chat still works)")
     from .audio.vad import EnergyVAD, create_vad_engine
     eng = create_vad_engine(cfg.audio.vad)
-    report(True, "vad", eng.__class__.__name__ + ("" if not isinstance(eng, EnergyVAD) or cfg.audio.vad.engine == "energy"
-                                                  else " (fallback - install faster-whisper for Silero)"))
+    fallback = isinstance(eng, EnergyVAD) and cfg.audio.vad.engine != "energy"
+    report("warn" if fallback else "ok", "vad",
+           eng.__class__.__name__ + (" (fallback - install faster-whisper for Silero)" if fallback else ""))
     try:
         import sounddevice as sd  # type: ignore
-        report(True, "audio devices", f"in={sd.query_devices(kind='input')['name']} | "
+        report("ok", "audio devices", f"in={sd.query_devices(kind='input')['name']} | "
                                       f"out={sd.query_devices(kind='output')['name']}")
     except Exception as e:  # noqa: BLE001
-        print(f"  [--] audio devices  not available for terminal mode ({e.__class__.__name__}); web UI unaffected")
+        report("off", "audio devices", f"terminal mode unavailable ({e.__class__.__name__}); web UI unaffected")
     if svc.memory:
         try:
             vec = await svc.memory.embedder.embed(["test"])
-            report(True, "memory", f"{cfg.resolve_path(cfg.memory.db_path)} embed={svc.memory.embedder.model_id} "
-                                   f"dim={vec.shape[1]} {svc.memory.store.stats(svc.memory.character)}")
+            report("ok", "memory", f"{cfg.resolve_path(cfg.memory.db_path)} embed={svc.memory.embedder.model_id} "
+                                   f"dim={vec.shape[1]} enabled={svc.memory.enabled} "
+                                   f"{svc.memory.store.stats(svc.memory.character, profile=svc.memory.profile)}")
         except Exception as e:  # noqa: BLE001
-            report(False, "memory", str(e))
+            report("FAIL", "memory", str(e))
+    else:
+        report("off", "memory", "memory.enabled: false")
     await svc.aclose()
     print(f"\n{'All checks passed.' if not failures else f'{failures} check(s) failed.'}\n")
     return 1 if failures else 0
@@ -233,9 +271,15 @@ def cmd_check(args: argparse.Namespace) -> None:
 # ------------------------------------------------------------------ memory
 def cmd_memory(args: argparse.Namespace) -> None:
     from .core.session import Services
-    from .memory import Layer
+    from .memory import Layer, MemoryStore
 
     cfg = _setup(args)
+    if args.action == "restore":
+        if not args.id:
+            raise SystemExit("usage: riko memory restore BACKUP_FILE  (stop the server first)")
+        MemoryStore.restore(args.id, cfg.resolve_path(cfg.memory.db_path))
+        print(f"restored {cfg.resolve_path(cfg.memory.db_path)} from {args.id}")
+        return
 
     async def run() -> None:
         svc = Services.from_config(cfg)
@@ -244,8 +288,38 @@ def cmd_memory(args: argparse.Namespace) -> None:
             print("memory is disabled in config")
             return
         if args.action == "list":
-            for m in mem.store.list(mem.character, Layer(args.layer) if args.layer else None):
-                print(f"{m.id}  {m.layer.value:<8} imp={m.importance:.2f} str={mem.strength(m):.2f}  {m.content}")
+            for m in mem.store.list(mem.character, Layer(args.layer) if args.layer else None, profile=mem.profile):
+                print(f"{m.id}  {m.layer.value:<12} imp={m.importance:.2f} conf={m.confidence:.2f} "
+                      f"str={mem.strength(m):.2f}  {m.content}")
+        elif args.action == "self":
+            for m in mem.store.list(mem.character, profile=mem.profile):
+                if m.speaker == "assistant":
+                    print(f"{m.id}  {m.content}   (from: \"{m.evidence[:80]}\")")
+        elif args.action == "relationship":
+            from .core.context import familiarity_stage
+            from .personality import STAGE_LABELS
+            rel = mem.store.get_relationship(mem.character, profile=mem.profile)
+            stage = familiarity_stage(rel, cfg.memory.familiarity, __import__("time").time())
+            print(f"stage {stage} ({STAGE_LABELS[stage]}), meaningful sessions={rel['sessions']}, "
+                  f"completed user turns={rel['user_turns']}")
+            for m in mem.store.list(mem.character, Layer.RELATIONSHIP, profile=mem.profile):
+                print(f"{m.id}  {m.content}")
+        elif args.action == "export":
+            import json
+            data = json.dumps(mem.store.export(mem.character, profile=mem.profile), indent=2, default=str)
+            if args.id:
+                open(args.id, "w", encoding="utf-8").write(data)
+                print(f"exported to {args.id}")
+            else:
+                print(data)
+        elif args.action == "clear":
+            if not args.yes:
+                print("refusing without --yes (deletes every memory for this character)")
+            else:
+                print(f"deleted {mem.clear()} memories")
+        elif args.action == "backup":
+            dest = args.id or str(cfg.resolve_path(cfg.memory.db_path)) + f".backup-{__import__('time').strftime('%Y%m%d-%H%M%S')}"
+            print(f"backup written to {mem.store.backup(dest)}")
         elif args.action == "stats":
             print(mem.store.stats(mem.character))
         elif args.action == "forget":
@@ -264,6 +338,26 @@ def cmd_memory(args: argparse.Namespace) -> None:
         await svc.aclose()
 
     asyncio.run(run())
+
+
+def cmd_probe(args: argparse.Namespace) -> None:
+    import json
+
+    from .evaluation import probe
+    cfg = _setup(args)
+    m = asyncio.run(probe(cfg))
+    print(json.dumps({k: m.get(k) for k in ("health", "ollama_version", "digest", "template_sha256", "warmup",
+                                            "capabilities", "notes", "path")}, indent=2, default=str))
+
+
+def cmd_eval(args: argparse.Namespace) -> None:
+    import json
+
+    from .evaluation import smoke
+    cfg = _setup(args)
+    m = asyncio.run(smoke(cfg, runs=args.runs, limit=args.limit))
+    print(json.dumps({k: m.get(k) for k in ("passed", "total", "failed_cases", "fallback_rate", "latency_ms",
+                                            "path_measured", "status", "path")}, indent=2, default=str))
 
 
 def main(argv: Optional[list[str]] = None) -> None:
@@ -294,10 +388,21 @@ def main(argv: Optional[list[str]] = None) -> None:
     p.set_defaults(fn=cmd_check)
     p = sub.add_parser("memory", help="inspect or maintain memory")
     common(p)
-    p.add_argument("action", choices=["list", "stats", "forget", "maintain", "reindex"])
-    p.add_argument("id", nargs="?")
-    p.add_argument("--layer", choices=["episodic", "semantic", "working"])
+    p.add_argument("action", choices=["list", "stats", "forget", "maintain", "reindex", "self", "relationship",
+                                      "export", "clear", "backup", "restore"])
+    p.add_argument("id", nargs="?", help="memory id (forget) or file path (export/backup/restore)")
+    p.add_argument("--layer", choices=["episodic", "semantic", "relationship", "task", "working"])
+    p.add_argument("--yes", action="store_true", help="confirm destructive actions")
     p.set_defaults(fn=cmd_memory)
+    p = sub.add_parser("probe", help="probe the configured model's real capabilities")
+    common(p)
+    p.set_defaults(fn=cmd_probe)
+    p = sub.add_parser("eval", help="run an evaluation suite")
+    common(p)
+    p.add_argument("suite", choices=["smoke"])
+    p.add_argument("--runs", type=int, default=1)
+    p.add_argument("--limit", type=int, help="only the first N cases")
+    p.set_defaults(fn=cmd_eval)
     args = ap.parse_args(argv)
     if not getattr(args, "fn", None):
         args = ap.parse_args(["serve", *(argv or sys.argv[1:])])
