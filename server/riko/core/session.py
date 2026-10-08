@@ -87,6 +87,8 @@ class Services:
     http: Optional[httpx.AsyncClient] = None
     mood_model: Optional[MoodModel] = None
     status: dict[str, Any] = field(default_factory=dict)  # readiness facts for /api/status
+    vmc: Any = None                                         # VMCSender when frontend.vtuber.enabled
+    llm_ready: asyncio.Event = field(default_factory=asyncio.Event)  # cleared while the model loads
 
     def __post_init__(self) -> None:
         cfg = self.config
@@ -97,6 +99,11 @@ class Services:
         if self.scheduler is None:
             self.scheduler = Scheduler(cfg.memory.max_pending_jobs, cfg.memory.job_expiry_minutes * 60,
                                        cfg.memory.job_max_attempts, idle_s=cfg.memory.background_idle_s)
+        self.llm_ready.set()  # the server clears it during warm-up
+        vt = cfg.frontend.vtuber
+        if self.vmc is None and vt.enabled:
+            from ..vmc import VMCSender
+            self.vmc = VMCSender(vt.host, vt.port, rate_hz=vt.rate_hz, send_bones=vt.send_bones)
         if self.http is None and "network" in cfg.tools.permissions:
             self.http = httpx.AsyncClient(timeout=10.0, follow_redirects=True,
                                           headers={"User-Agent": "riko-next (local assistant)"})
@@ -140,6 +147,8 @@ class Services:
             await self.llm.aclose()
         if self.http:
             await self.http.aclose()
+        if self.vmc:
+            self.vmc.close()
         if self.memory:
             try:
                 await self.memory.embedder.aclose()
@@ -296,6 +305,7 @@ class ConversationSession:
             "browser_voice": cfg.tts.browser_voice, "browser_pitch": cfg.tts.browser_pitch,
             "show_tokens": cfg.frontend.show_token_stream,
             "familiarity": STAGE_LABELS.get(self.stage, "unknown"),
+            "vtuber": self.s.vmc is not None,
         }
 
     async def start(self) -> None:
@@ -524,6 +534,16 @@ class ConversationSession:
             history = mem.context_messages()
         else:
             history = self._history[-cfg.memory.short_term_messages:]
+        if st.source in USER_SOURCES and self.s.personality.current.knowledge:
+            from ..memory import keyword_relevance
+            scored = sorted(((keyword_relevance(text, k), k) for k in self.s.personality.current.knowledge),
+                            reverse=True)
+            facts = [k for score, k in scored[:4] if score >= 0.05]
+            if facts:
+                data["background_facts"] = {
+                    "facts": facts,
+                    "rule": "These checked facts are all you know about this topic. Do not add features, prices, "
+                            "numbers or details that are not here; if asked for more, say you don't know."}
         if image_note:
             data["image_from_user"] = image_note
         if extra:
@@ -613,6 +633,14 @@ class ConversationSession:
             st.metrics["context_ms"] = st.ms()
             await self._emit(Ev.LLM_STARTED, turn_id=turn_id, model=self.s.llm.model, source=source)
             tts_task = asyncio.create_task(self._tts_worker(st, queue))
+            if not self.s.llm_ready.is_set():
+                await self._emit(Ev.ERROR, component="llm", level="info", recoverable=True, turn_id=turn_id,
+                                 message="Loading the language model (the first start can take ~30 s)...")
+                try:
+                    await asyncio.wait_for(self.s.llm_ready.wait(), 180)
+                except asyncio.TimeoutError:
+                    pass  # try anyway; the normal deadlines and error handling apply
+                st.metrics["waited_for_model_load_ms"] = st.ms() - st.metrics["context_ms"]
             async with self.s.scheduler.foreground():
                 st.metrics["foreground_queue_ms"] = st.ms() - st.metrics["context_ms"]
                 try:
@@ -688,8 +716,9 @@ class ConversationSession:
         tool_ctx = ToolContext(cfg, self.memory, self._ask_image if self.last_image_id else None, st.turn_id,
                                self.s.http)
         use_tools = cfg.tools.enabled and st.source in USER_SOURCES and bool(self.s.tools.active(tool_ctx))
-        overall = st.t0 + cfg.llm.overall_timeout_s
-        first_content = st.t0 + st.metrics.get("context_ms", 0) / 1000 + cfg.llm.first_content_timeout_s
+        dispatched = time.perf_counter()  # deadlines count the model's time, not model loading or vision
+        overall = dispatched + cfg.llm.overall_timeout_s
+        first_content = dispatched + cfg.llm.first_content_timeout_s
         step = retries = 0
         seen_calls: set[tuple[str, str]] = set()
         while step <= cfg.tools.max_steps:

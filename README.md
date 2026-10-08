@@ -239,6 +239,25 @@ Every tool call is checked in this order:
 
 Reminders are spoken only while the app is open, and Riko says so. Tool activity is shown in the conversation.
 
+## VTuber mode (VSeeFace over VMC)
+
+Riko can also drive your model in [VSeeFace](https://www.vseeface.icu/), the layer the original Riko only showed
+on video. The details follow the VMC spec checked in [docs/PROJECT_RIKO_REPORT.md](docs/PROJECT_RIKO_REPORT.md).
+
+1. Install VSeeFace v1.13.38c5 or newer. It runs on Windows only and loads **VRM 0.x** models only, so in VRoid
+   Studio choose *Export as VRM* with VRM 0.0.
+2. In VSeeFace, open *General settings* and turn on the *OSC/VMC receiver* (port 39539).
+3. In `config.yaml`, set `frontend.vtuber.enabled: true`, then open the web UI and press **Start talking**.
+
+What it sends:
+- The browser streams mouth level, expression and blink about 30 times a second.
+- The server relays them as `/VMC/Ext/Blend/Val` for `A I U E O Joy Angry Sorrow Fun Surprised Blink`, plus one
+  `/VMC/Ext/Blend/Apply`. Lip sync needs no virtual audio cable.
+- With `send_bones: true`, it also sends a scripted head sway and nod (`/VMC/Ext/Bone/Pos` with all 7 numbers).
+
+It only sends to `127.0.0.1` unless you set `allow_remote: true`. It uses no extra dependency, because OSC is
+encoded with the standard library. `/api/status` shows the packets sent.
+
 ## Proactivity
 
 ```yaml

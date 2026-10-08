@@ -247,6 +247,7 @@ function subtitle(text, who) {
 }
 
 function setEmotion(e) {
+  state.emotionState = e;
   $('emotion').textContent = e.emotion === 'neutral' ? 'calm' : e.emotion;
   state.avatar?.setEmotion(e);
 }
@@ -598,6 +599,21 @@ function bindUI() {
   }));
 }
 
+// ------------------------------------------------------------------ VTuber (VMC) output
+// The server relays this to VSeeFace as VMC Blend/Val + Apply (and optional Bone/Pos) messages.
+const vt = { acc: 0, blinkIn: 3, blinkT: 0 };
+function sendAvatarState(dt, mouth, speaking) {
+  vt.blinkIn -= dt;
+  if (vt.blinkIn <= 0) { vt.blinkT = 0.15; vt.blinkIn = 2 + Math.random() * 4; }
+  vt.blinkT = Math.max(0, vt.blinkT - dt);
+  vt.acc += dt;
+  if (vt.acc < 1 / 30) return;
+  vt.acc = 0;
+  const e = state.emotionState || { expression: 'neutral', intensity: 0 };
+  send({ type: 'avatar_state', mouth: Math.min(1, speaking ? mouth * 1.4 : 0), expression: e.expression || 'neutral',
+    intensity: e.intensity || 0, blink: vt.blinkT > 0 ? Math.sin((vt.blinkT / 0.15) * Math.PI) : 0, speaking });
+}
+
 // ------------------------------------------------------------------ render loop
 let last = performance.now();
 function frame(now) {
@@ -609,6 +625,7 @@ function frame(now) {
   if (speaker !== state.speaker) { state.speaker = speaker; document.body.dataset.speaker = speaker; }
   const level = speaker === 'riko' ? lv.riko : speaker === 'you' ? lv.you : 0;
   $('halo').style.setProperty('--level', level.toFixed(3));
+  if (state.settings.vtuber) sendAvatarState(dt, lv.riko, rikoTalking);
   state.behavior?.update(dt, {
     convo: document.body.dataset.state, userSpeaking: speaker === 'you', rikoSpeaking: rikoTalking,
   });

@@ -219,3 +219,34 @@ async def test_body_action_tags_move_the_avatar_and_are_never_shown_or_spoken(tm
     assert "act:" not in shown and "act:" not in " ".join(tts.texts)
     from riko.emotion import strip_tags
     assert strip_tags("Hi! [act:hop] Bye.") == "Hi! Bye."
+
+
+async def test_cold_model_load_is_waited_for_not_timed_out(tmp_path):
+    cfg = make_config(tmp_path)
+    cfg.llm.first_content_timeout_s = 0.3
+    svc = make_services(tmp_path, llm=ScriptedLLM([[ev("content", "Ready now."), ev("done")]]), cfg=cfg)
+    svc.llm_ready.clear()  # model still loading
+    sink = RecordingSink()
+    s = ConversationSession(svc, sink)
+    await s.submit_text("hi")
+    await asyncio.sleep(0.6)  # longer than the first-content deadline
+    assert not sink.of("assistant_stopped")
+    assert sink.of("error")[0]["level"] == "info" and "Loading" in sink.of("error")[0]["message"]
+    svc.llm_ready.set()
+    await wait_for(lambda: sink.of("assistant_stopped"))
+    m = sink.of("metrics")[0]
+    assert "fallback" not in m and m["waited_for_model_load_ms"] >= 500
+    assert sink.of("llm_sentence")[0]["text"] == "Ready now."
+
+
+async def test_relevant_background_facts_go_next_to_the_question(tmp_path):
+    llm = ScriptedLLM([[ev("content", "Ok."), ev("done")], [ev("content", "Ok."), ev("done")]])
+    svc = make_services(tmp_path, llm=llm)
+    m, _ = await svc.memory.remember("USER IS DREAD", source="user_edit", confidence=1.0)  # added by hand in the UI
+    s, sink = await run(svc, "Is Rikoverse worth paying for?")
+    ctx = llm.calls[0][-2]["content"]
+    assert "rikoverse.com" in ctx and "Do not add features" in ctx and "USER IS DREAD" in ctx
+    assert "rikoverse" not in llm.calls[0][0]["content"].lower()   # not in the static prompt every turn
+    await s.submit_text("What's the weather like on Mars?")
+    await wait_for(lambda: len(sink.of("assistant_stopped")) == 2)
+    assert "background_facts" not in llm.calls[1][-2]["content"]   # unrelated questions get none

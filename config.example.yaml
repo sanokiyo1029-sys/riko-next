@@ -132,6 +132,11 @@ frontend:
   avatar:
     enabled: true
     vrm_url: ""                 # e.g. avatars/riko.vrm (put the file in client/web/avatars/)
+  vtuber:                       # drive your model in VSeeFace too (VMC protocol over UDP)
+    enabled: false              # VSeeFace: General settings -> OSC/VMC receiver ON, port 39539
+    host: 127.0.0.1             # only this PC unless allow_remote: true
+    port: 39539
+    send_bones: false           # scripted head sway/nod; keep off if VSeeFace tracks your webcam
 
 logging:
   level: INFO

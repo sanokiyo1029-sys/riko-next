@@ -350,11 +350,12 @@ class MemoryManager:
         return top
 
     def core_memories(self, limit: int = 6) -> list[Memory]:
-        """Always-in-context facts: the user's name and how they want to be treated (nicknames, tone)."""
+        """Always-in-context facts: the user's name, how they want to be treated, and anything the user
+        added or corrected by hand in the Memory tab."""
         if not self.enabled:
             return []
         items = [m for m in self._list() if m.status == Status.ACTIVE and
-                 (m.pinned or m.category in ("identity", "interaction"))
+                 (m.pinned or m.source == "user_edit" or m.category in ("identity", "interaction"))
                  and m.layer in (Layer.SEMANTIC, Layer.RELATIONSHIP)]
         items.sort(key=lambda m: (m.pinned, m.importance, m.updated_at), reverse=True)
         return items[:limit]

@@ -75,12 +75,15 @@ async def _warm_llm(svc: Services) -> None:
     """Bounded, non-blocking preload. Readiness is reported, never faked."""
     t = time.perf_counter()
     svc.status["llm"] = {"state": "loading"}
+    svc.llm_ready.clear()
     try:
         caps = await asyncio.wait_for(svc.llm.capabilities(), 15)
         res = await asyncio.wait_for(svc.llm.warmup(), 300)
     except Exception as e:  # noqa: BLE001
         svc.status["llm"] = {"state": "error", "error": e.__class__.__name__}
+        svc.llm_ready.set()  # don't hold replies hostage; they report the real error
         return
+    svc.llm_ready.set()
     svc.status["llm"] = {"state": "loaded" if res.get("loaded") else "unknown" if res.get("loaded") is None
                          else "error", **res, "capabilities": caps, "warmup_ms": round((time.perf_counter() - t) * 1000)}
     log.info("LLM warm-up", extra={"model": svc.llm.model, **{k: v for k, v in svc.status["llm"].items()
@@ -195,7 +198,9 @@ def create_app(cfg: RikoConfig, services: Optional[Services] = None, *, warmup: 
                                        "max_tokens": cfg.llm.max_tokens},
                                "roles": {r: (c.model if c else None) for r in ("fast", "smart", "vision")
                                          for c in [svc.router.config_for(r)]},
-                               "background": svc.scheduler.backlog()}
+                               "background": svc.scheduler.backlog(),
+                               "vtuber": ({"target": f"{svc.vmc.addr[0]}:{svc.vmc.addr[1]}", "packets_sent": svc.vmc.sent,
+                                           "send_errors": svc.vmc.errors} if svc.vmc else None)}
         if isinstance(svc.llm, OllamaLLM):
             out["ollama"] = {"version": await svc.llm.version(),
                              "running": [{k: m.get(k) for k in ("name", "digest", "size_vram", "context_length",
@@ -471,6 +476,11 @@ def create_app(cfg: RikoConfig, services: Optional[Services] = None, *, warmup: 
             session.note_activity()
         elif t == "settings":
             await session.apply_settings(**m.model_dump(exclude={"type"}, exclude_none=True))
+        elif t == "avatar_state":
+            vmc = session.s.vmc
+            if vmc is not None:
+                vmc.frame(mouth=m.mouth, expression=m.expression, intensity=m.intensity, blink=m.blink,
+                          speaking=m.speaking)
         elif t == "ping":
             await session._emit(Ev.PONG)
 

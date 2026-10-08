@@ -66,12 +66,22 @@ class SettingsMsg(_Msg):
     proactive_level: Optional[Literal["off", "minimal", "normal"]] = None
 
 
+class AvatarStateMsg(_Msg):
+    """What the browser avatar is doing right now; relayed to VSeeFace when frontend.vtuber is on."""
+    type: Literal["avatar_state"]
+    mouth: float = Field(0.0, ge=0.0, le=1.0)
+    expression: Literal["neutral", "happy", "angry", "sad", "relaxed", "surprised"] = "neutral"
+    intensity: float = Field(0.0, ge=0.0, le=1.0)
+    blink: float = Field(0.0, ge=0.0, le=1.0)
+    speaking: bool = False
+
+
 class PingMsg(_Msg):
     type: Literal["ping"]
 
 
 ClientMessage = Annotated[Union[TextMsg, PTTMsg, InterruptMsg, PlaybackMsg, ReadyMsg, TypingMsg, SettingsMsg,
-                                PingMsg], Field(discriminator="type")]
+                                AvatarStateMsg, PingMsg], Field(discriminator="type")]
 client_message = TypeAdapter(ClientMessage)
 
 MAX_AUDIO_FRAME_BYTES = 64000  # 2 s of 16 kHz int16; clients send ~20-64 ms frames

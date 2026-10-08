@@ -359,9 +359,31 @@ class AvatarConfig(_Strict):
     camera_distance: float = 1.6
 
 
+class VTuberConfig(_Strict):
+    """Send the avatar's mouth/expressions to VSeeFace (or another VMC receiver) over UDP."""
+    enabled: bool = False
+    host: str = "127.0.0.1"          # VSeeFace on this PC. Non-loopback needs allow_remote: true.
+    port: int = Field(39539, ge=1, le=65535)   # VSeeFace's default VMC receiver port
+    rate_hz: float = Field(30.0, ge=5.0, le=120.0)
+    send_bones: bool = False         # scripted head sway/nod; leave off if VSeeFace also tracks your webcam
+    allow_remote: bool = False
+
+    @model_validator(mode="after")
+    def _loopback(self) -> "VTuberConfig":
+        import ipaddress
+        try:
+            local = self.host == "localhost" or ipaddress.ip_address(self.host).is_loopback
+        except ValueError:
+            local = False
+        if self.enabled and not local and not self.allow_remote:
+            raise ValueError("frontend.vtuber.host must be 127.0.0.1 unless allow_remote: true")
+        return self
+
+
 class FrontendConfig(_Strict):
     show_token_stream: bool = True
     avatar: AvatarConfig = Field(default_factory=AvatarConfig)
+    vtuber: VTuberConfig = Field(default_factory=VTuberConfig)
 
 
 class LoggingConfig(_Strict):

@@ -80,6 +80,8 @@ class Character(BaseModel):
     voice: Optional[str] = None
     greeting: Optional[str] = None          # local fallback greeting when the model is unavailable
     extra_instructions: str = ""
+    # Real-world background facts the character may use when asked (not memories of the user).
+    knowledge: list[str] = Field(default_factory=list, max_length=20)
     # Character bible: fictional canon, never presented as memories of real events.
     backstory: str = Field("", max_length=800)
     values: list[str] = Field(default_factory=list, max_length=8)
